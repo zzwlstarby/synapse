@@ -16,8 +16,18 @@
 
 import logging
 
+
+class Codes(object):
+    FORBIDDEN = "M_FORBIDDEN"
+    BAD_JSON = "M_BAD_JSON"
+    NOT_JSON = "M_NOT_JSON"
+    USER_IN_USE = "M_USER_IN_USE"
+    ROOM_IN_USE = "M_ROOM_IN_USE"
+    BAD_PAGINATION = "M_BAD_PAGINATION"
+
+
 class CodeMessageException(Exception):
-    """An exception with code and message attributes."""
+    """An exception with integer code and message string attributes."""
 
     def __init__(self, code, msg):
         logging.error("%s: %s, %s", type(self).__name__, code, msg)
@@ -28,7 +38,16 @@ class CodeMessageException(Exception):
 
 class SynapseError(CodeMessageException):
     """A base error which can be caught for all synapse events."""
-    pass
+    def __init__(self, code, msg, err=""):
+        """Constructs a synapse error.
+
+        Args:
+            code (int): The integer error code (typically an HTTP response code)
+            msg (str): The human-readable error message.
+            err (str): The error code e.g 'M_FORBIDDEN'
+        """
+        super(SynapseError, self).__init__(code, msg)
+        self.errcode = err
 
 
 class RoomError(SynapseError):
