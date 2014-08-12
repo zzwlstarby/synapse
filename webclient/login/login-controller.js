@@ -4,10 +4,10 @@ angular.module('LoginController', ['matrixService'])
     'use strict';
     
     $scope.account = {
-        homeserver: "http://localhost:8080", // http://matrix.openmarket.com", The hacky version of the HS hosted at the this URL does not work anymore
-        user_name_or_id: "",
+        homeserver: "http://localhost:8080",
+        desired_user_name: "",
         user_id: "",
-        access_token: "",
+        password: "",
         identityServer: "http://localhost:8090"
     };
 
@@ -19,7 +19,7 @@ angular.module('LoginController', ['matrixService'])
             identityServer: $scope.account.identityServer
         });
 
-        matrixService.register($scope.account.user_name_or_id).then(
+        matrixService.register($scope.account.user_desired_user_name).then(
             function(data) {
                 $scope.feedback = "Success";
 
@@ -43,29 +43,28 @@ angular.module('LoginController', ['matrixService'])
     };
 
     $scope.login = function() {
-
         matrixService.setConfig({
             homeserver: $scope.account.homeserver,
-            user_id: $scope.account.user_id,
-            access_token: $scope.account.access_token
+            user_id: $scope.account.user_id
         });
-
-        // Validate the token by making a request to the HS
-        matrixService.rooms().then(
-            function() {
-
-                // The request passes. We can consider to be logged in
-                $scope.feedback = "Success";
-
-                // The config is valid. Save it
-                matrixService.saveConfig();
-
-                // Go to the user's rooms list page
-                $location.path("rooms");
-            },
-            function(reason) {
-                $scope.feedback = "Failure: " + reason + " Are you sure your username is correct?";
-            });
+        // try to login
+        matrixService.login($scope.account.user_id, $scope.account.password).then(
+            function(response) {
+                if ("access_token" in response) {
+                    $scope.feedback = "Login successful.";
+                    matrixService.setConfig({
+                        homeserver: $scope.account.homeserver,
+                        user_id: $scope.account.user_id,
+                        access_token: response.access_token
+                    });
+                    matrixService.saveConfig();
+                    $location.path("rooms");
+                }
+                else {
+                    $scope.feedback = "Failed to login: " + JSON.stringify(response);
+                }
+            }
+        );
     };
 }]);
 

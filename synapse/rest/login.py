@@ -27,6 +27,9 @@ class LoginRestServlet(RestServlet):
     def on_GET(self, request):
         return (200, {"type": LoginRestServlet.PASS_TYPE})
 
+    def on_OPTIONS(self, request):
+        return (200, {})
+
     @defer.inlineCallbacks
     def on_POST(self, request):
         login_submission = _parse_json(request)

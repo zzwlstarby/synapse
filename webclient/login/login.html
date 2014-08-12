@@ -5,25 +5,24 @@
         
     <h3>Register for an account:</h3>
     <form novalidate>
-        <input id="user_name_or_id" size="70" type="text" auto-focus ng-model="account.user_name_or_id" placeholder="User name (ex:bob)"/>
+        <input id="desired_user_name" size="70" type="text" auto-focus ng-model="account.desired_user_name" placeholder="User name (ex:bob)"/>
         <br/>
         <!-- New user registration -->
         <div>
             <br/>
-            <button ng-click="register()" ng-disabled="!account.user_name_or_id || !account.homeserver || !account.identityServer">Register</button>
+            <button ng-click="register()" ng-disabled="!account.desired_user_name || !account.homeserver || !account.identityServer">Register</button>
         </div>
     </form>
 
     <h3>Got an account?</h3>
     <form novalidate>
         <!-- Login with an registered user -->
-        <!-- This part is automatically shown if user_name_or_id starts with an '@' -->
         <div>
             <input id="user_id" size="70" type="text" auto-focus ng-model="account.user_id" placeholder="User ID (ex:@bob:localhost)"/>
             <br />
-            <input id="accessToken" size="70" type="text" ng-model="account.access_token" placeholder="Enter this access token of this registered user"/><br />
+            <input id="password" size="70" type="password" ng-model="account.password" placeholder="Password"/><br />
             <br/>
-            <button ng-click="login()" ng-disabled="!account.user_id || !account.access_token || !account.homeserver || !account.identityServer">Login</button>
+            <button ng-click="login()" ng-disabled="!account.user_id || !account.password || !account.homeserver || !account.identityServer">Login</button>
         </div>
        
     </form>

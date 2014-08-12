@@ -23,7 +23,7 @@ angular.module('matrixService', [])
             params = {};
         }
         params.access_token = config.access_token;
-
+        
         return doBaseRequest(config.homeserver, method, path, params, data, undefined);
     };
 
@@ -233,6 +233,18 @@ angular.module('matrixService', [])
             var path = "/profile/$user_id/" + info_segment;
             path = path.replace("$user_id", userId);
             return doRequest("GET", path);
+        },
+        
+        login: function(userId, password) {
+            // TODO We should be checking to make sure the client can support
+            // logging in to this HS, else use the fallback.
+            var path = "/login";
+            var data = {
+                "type": "m.login.password",
+                "user": userId,
+                "password": password  
+            };
+            return doRequest("POST", path, undefined, data);
         },
 
         // hit the Identity Server for a 3PID request.
