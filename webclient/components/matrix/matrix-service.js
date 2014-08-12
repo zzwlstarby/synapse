@@ -63,12 +63,13 @@ angular.module('matrixService', [])
         prefix: prefixPath,
 
         // Register an user
-        register: function(user_name) {
+        register: function(user_name, password) {
             // The REST path spec
             var path = "/register";
 
             return doRequest("POST", path, undefined, {
-                 user_id: user_name
+                 user_id: user_name,
+                 password: password
             });
         },
 

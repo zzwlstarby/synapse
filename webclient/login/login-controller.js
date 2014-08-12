@@ -8,7 +8,9 @@ angular.module('LoginController', ['matrixService'])
         desired_user_name: "",
         user_id: "",
         password: "",
-        identityServer: "http://localhost:8090"
+        identityServer: "http://localhost:8090",
+        pwd1: "",
+        pwd2: ""
     };
 
     $scope.register = function() {
@@ -18,8 +20,17 @@ angular.module('LoginController', ['matrixService'])
             homeserver: $scope.account.homeserver,
             identityServer: $scope.account.identityServer
         });
+        
+        if ($scope.account.pwd1 !== $scope.account.pwd2) {
+            $scope.feedback = "Passwords don't match.";
+            return;
+        }
+        else if ($scope.account.pwd1.length < 6) {
+            $scope.feedback = "Password must be at least 6 characters.";
+            return;
+        }
 
-        matrixService.register($scope.account.user_desired_user_name).then(
+        matrixService.register($scope.account.desired_user_name, $scope.account.pwd1).then(
             function(data) {
                 $scope.feedback = "Success";
 
