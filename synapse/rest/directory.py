@@ -3,7 +3,7 @@
 from twisted.internet import defer
 
 from synapse.types import RoomAlias, RoomID
-from base import RestServlet, InvalidHttpRequestError
+from base import RestServlet, InvalidHttpRequestError, client_path_pattern
 
 import json
 import logging
@@ -19,7 +19,7 @@ def register_servlets(hs, http_server):
 
 
 class ClientDirectoryServer(RestServlet):
-    PATTERN = re.compile("^/ds/room/(?P<room_alias>[^/]*)$")
+    PATTERN = client_path_pattern("^/ds/room/(?P<room_alias>[^/]*)$")
 
     @defer.inlineCallbacks
     def on_GET(self, request, room_alias):
