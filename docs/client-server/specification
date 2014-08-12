@@ -20,10 +20,6 @@ a home server.
 
 [[TODO(kegan):
 Outstanding problems / missing spec:
-- No presence spec.
-- Spec out standard error responses (malformed json, missing keys, invalid 
-  values for keys, unknown users (iff host is home server),
-  room id in use, Pagination query param error / index out of bounds, )
 - User level config/settings
 - Push
 - Typing notifications
@@ -252,11 +248,41 @@ If the client sends an invalid request, the server MAY respond with an error
 response. This is of the form:
 {
   "error" : "string",
-  "errcode" : integer
+  "errcode" : "string"
 }
-The 'error' string will be a human-readable error message. There may be 
-additional keys depending on the error, but
-the keys 'error' and 'errcode' will always be present.
+The 'error' string will be a human-readable error message, usually a sentence
+explaining what went wrong. 
+
+The 'errcode' string will be a unique string which can be used to handle an 
+error message e.g. "M_FORBIDDEN". These error codes should have their namespace 
+first in ALL CAPS, followed by a single _. For example, if there was a custom
+namespace com.mydomain.here, and a "FORBIDDEN" code, the error code should look
+like "COM.MYDOMAIN.HERE_FORBIDDEN". There may be additional keys depending on 
+the error, but the keys 'error' and 'errcode' will always be present. 
+
+Some standard error codes are below:
+
+M_FORBIDDEN:
+Forbidden access, e.g. bad access token, failed login.
+
+M_BAD_JSON:
+Request contained valid JSON, but it was malformed in some way, e.g. missing
+required keys, invalid values for keys.
+
+M_NOT_JSON:
+Request did not contain valid JSON.
+
+Some requests have unique error codes:
+
+M_USER_IN_USE:
+Encountered when trying to register a user ID which has been taken.
+
+M_ROOM_IN_USE:
+Encountered when trying to create a room which has been taken.
+
+M_BAD_PAGINATION:
+Encountered when specifying bad pagination values to a Pagination Streaming API.
+
 
 ========
 REST API
@@ -299,7 +325,7 @@ Registering for an account
                        "user_id" : "string [user_id]",
                        "access_token" : "string"
                      }
-  Returns (failure): An Error Response.
+  Returns (failure): An Error Response. M_USER_IN_USE if the user ID is taken.
                      
 
 Unregistering an account
@@ -598,8 +624,9 @@ Creating a room (with a room ID)
     {
       suggested_room_id : $new_room_id
       error : "Room already in use."
-      errcode : $errcode
+      errcode : "M_ROOM_IN_USE"
     }
+    
 
 Creating a room (without a room ID)
 -----------------------------------
