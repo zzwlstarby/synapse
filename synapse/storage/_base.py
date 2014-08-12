@@ -120,7 +120,7 @@ class SQLBaseStore(object):
             retcol (str): column whos value we wish to retrieve.
 
         Returns:
-            list
+            Deferred: Results in a list
         """
         sql = "SELECT %(retcol)s FROM %(table)s WHERE %(where)s" % {
             "retcol": retcol,
@@ -134,7 +134,7 @@ class SQLBaseStore(object):
 
         res = yield self._db_pool.runInteraction(func)
 
-        defer.returnValue(res)
+        defer.returnValue([r[0] for r in res])
 
     def _simple_select_list(self, table, keyvalues, retcols):
         """Executes a SELECT query on the named table, which may return zero or
