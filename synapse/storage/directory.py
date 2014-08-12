@@ -17,9 +17,12 @@ class DirectoryStore(SQLBaseStore):
     def get_association_from_room_alias(self, room_alias):
         """ Get's the room_id and server list for a given room_alias
 
+        Args:
+            room_alias (RoomAlias)
+
         Returns:
-            namedtuple: with keys "room_id" and "servers" or None if
-            no association can be found
+            Deferred: results in namedtuple with keys "room_id" and
+            "servers" or None if no association can be found
         """
         room_id = yield self._simple_select_one_onecol(
             "room_aliases",
@@ -46,6 +49,16 @@ class DirectoryStore(SQLBaseStore):
 
     @defer.inlineCallbacks
     def create_room_alias_association(self, room_alias, room_id, servers):
+        """ Creates an associatin between  a room alias and room_id/servers
+
+        Args:
+            room_alias (RoomAlias)
+            room_id (str)
+            servers (list)
+
+        Returns:
+            Deferred
+        """
         yield self._simple_insert(
             "room_aliases",
             {
