@@ -58,7 +58,7 @@ class RoomCreateRestServlet(RestServlet):
 
         room_config = self.get_room_config(request)
         info = yield self.make_room(room_config, auth_user, room_id)
-        info.update(room_config)
+        room_config.update(info)
         defer.returnValue((200, info))
 
     @defer.inlineCallbacks
@@ -67,20 +67,18 @@ class RoomCreateRestServlet(RestServlet):
 
         room_config = self.get_room_config(request)
         info = yield self.make_room(room_config, auth_user, None)
-        info.update(room_config)
+        room_config.update(info)
         defer.returnValue((200, info))
 
     @defer.inlineCallbacks
     def make_room(self, room_config, auth_user, room_id):
         handler = self.handlers.room_creation_handler
-        new_room_id = yield handler.create_room(
+        info = yield handler.create_room(
             user_id=auth_user.to_string(),
             room_id=room_id,
             config=room_config
         )
-        defer.returnValue({
-            "room_id": new_room_id
-        })
+        defer.returnValue(info)
 
     def get_room_config(self, request):
         try:

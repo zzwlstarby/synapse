@@ -375,7 +375,11 @@ class RoomCreationHandler(BaseHandler):
             do_auth=False
         )
 
-        defer.returnValue(room_id)
+        result = {"room_id": room_id}
+        if room_alias:
+            result["room_alias"] = room_alias.to_string()
+
+        defer.returnValue(result)
 
 
 class RoomMemberHandler(BaseHandler):
