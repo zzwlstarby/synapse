@@ -535,7 +535,7 @@ class RoomMemberHandler(BaseHandler):
         defer.returnValue({"room_id": room_id})
 
     @defer.inlineCallbacks
-    def join_room_name(self, joinee, room_alias, do_auth=True, content={}):
+    def join_room_alias(self, joinee, room_alias, do_auth=True, content={}):
         directory_handler = self.hs.get_handlers().directory_handler
         mapping = yield directory_handler.get_association(room_alias)
 

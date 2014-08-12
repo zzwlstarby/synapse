@@ -167,7 +167,7 @@ class JoinRoomAliasServlet(RestServlet):
         )
 
         handler = self.handlers.room_member_handler
-        yield handler.join_room_name(user, room_alias)
+        yield handler.join_room_alias(user, room_alias)
 
         defer.returnValue((200, {}))
 
