@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from synapse.api.errors import SynapseError
+from synapse.api.errors import SynapseError, Codes
 from synapse.util.jsonobject import JsonEncodedObject
 
 
@@ -108,7 +108,7 @@ class SynapseEvent(JsonEncodedObject):
         err_msg = self._check_json(content, self.get_content_template())
         if err_msg:
             if raises:
-                raise SynapseError(400, err_msg)
+                raise SynapseError(400, err_msg, Codes.BAD_JSON)
             else:
                 return False
         else:

@@ -25,6 +25,7 @@ class Codes(object):
     ROOM_IN_USE = "M_ROOM_IN_USE"
     BAD_PAGINATION = "M_BAD_PAGINATION"
     UNKNOWN = "M_UNKNOWN"
+    NOT_FOUND = "M_NOT_FOUND"
 
 
 class CodeMessageException(Exception):

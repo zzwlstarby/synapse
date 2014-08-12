@@ -272,6 +272,9 @@ required keys, invalid values for keys.
 M_NOT_JSON:
 Request did not contain valid JSON.
 
+M_NOT_FOUND:
+No resource was found for this request.
+
 Some requests have unique error codes:
 
 M_USER_IN_USE:

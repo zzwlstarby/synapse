@@ -16,7 +16,7 @@
 from twisted.internet import defer
 
 from base import RestServlet, client_path_pattern
-from synapse.api.errors import SynapseError
+from synapse.api.errors import SynapseError, Codes
 from synapse.api.events.room import (RoomTopicEvent, MessageEvent,
                                      RoomMemberEvent, FeedbackEvent)
 from synapse.api.constants import Feedback, Membership
@@ -90,7 +90,8 @@ class RoomCreateRestServlet(RestServlet):
                 user_supplied_config["visibility"] = "public"
             return user_supplied_config
         except (ValueError, TypeError):
-            raise SynapseError(400, "Body must be JSON.")
+            raise SynapseError(400, "Body must be JSON.",
+                               errcode=Codes.BAD_JSON)
 
     def on_OPTIONS(self, request):
         return (200, {})
@@ -115,7 +116,7 @@ class RoomTopicRestServlet(RestServlet):
         )
 
         if not data:
-            raise SynapseError(404, "Topic not found.")
+            raise SynapseError(404, "Topic not found.", errcode=Codes.NOT_FOUND)
         defer.returnValue((200, json.loads(data.content)))
 
     @defer.inlineCallbacks
@@ -177,7 +178,8 @@ class RoomMemberRestServlet(RestServlet):
         member = yield handler.get_room_member(room_id, target_user_id,
                                                user.to_string())
         if not member:
-            raise SynapseError(404, "Member not found.")
+            raise SynapseError(404, "Member not found.",
+                               errcode=Codes.NOT_FOUND)
         defer.returnValue((200, json.loads(member.content)))
 
     @defer.inlineCallbacks
@@ -203,12 +205,13 @@ class RoomMemberRestServlet(RestServlet):
 
         content = _parse_json(request)
         if "membership" not in content:
-            raise SynapseError(400, "No membership key.")
+            raise SynapseError(400, "No membership key.",
+                               errcode=Codes.BAD_JSON)
 
         valid_membership_values = [Membership.JOIN, Membership.INVITE]
         if (content["membership"] not in valid_membership_values):
             raise SynapseError(400, "Membership value must be %s." % (
-                    valid_membership_values,))
+                    valid_membership_values,), errcode=Codes.BAD_JSON)
 
         event = self.event_factory.create_event(
             etype=self.get_event_type(),
@@ -243,7 +246,8 @@ class MessageRestServlet(RestServlet):
                                             )
 
         if not msg:
-            raise SynapseError(404, "Message not found.")
+            raise SynapseError(404, "Message not found.",
+                               errcode=Codes.NOT_FOUND)
 
         defer.returnValue((200, json.loads(msg.content)))
 
@@ -252,7 +256,8 @@ class MessageRestServlet(RestServlet):
         user = yield self.auth.get_user_by_req(request)
 
         if user.to_string() != sender_id:
-            raise SynapseError(403, "Must send messages as yourself.")
+            raise SynapseError(403, "Must send messages as yourself.",
+                               errcode=Codes.FORBIDDEN)
 
         content = _parse_json(request)
 
@@ -286,7 +291,8 @@ class FeedbackRestServlet(RestServlet):
         user = yield (self.auth.get_user_by_req(request))
 
         if feedback_type not in Feedback.LIST:
-            raise SynapseError(400, "Bad feedback type.")
+            raise SynapseError(400, "Bad feedback type.",
+                               errcode=Codes.BAD_JSON)
 
         msg_handler = self.handlers.message_handler
         feedback = yield msg_handler.get_feedback(
@@ -299,7 +305,8 @@ class FeedbackRestServlet(RestServlet):
         )
 
         if not feedback:
-            raise SynapseError(404, "Feedback not found.")
+            raise SynapseError(404, "Feedback not found.",
+                               errcode=Codes.NOT_FOUND)
 
         defer.returnValue((200, json.loads(feedback.content)))
 
@@ -309,10 +316,12 @@ class FeedbackRestServlet(RestServlet):
         user = yield (self.auth.get_user_by_req(request))
 
         if user.to_string() != fb_sender_id:
-            raise SynapseError(403, "Must send feedback as yourself.")
+            raise SynapseError(403, "Must send feedback as yourself.",
+                               errcode=Codes.FORBIDDEN)
 
         if feedback_type not in Feedback.LIST:
-            raise SynapseError(400, "Bad feedback type.")
+            raise SynapseError(400, "Bad feedback type.",
+                               errcode=Codes.BAD_JSON)
 
         content = _parse_json(request)
 
@@ -369,10 +378,11 @@ def _parse_json(request):
     try:
         content = json.loads(request.content.read())
         if type(content) != dict:
-            raise SynapseError(400, "Content must be a JSON object.")
+            raise SynapseError(400, "Content must be a JSON object.",
+                               errcode=Codes.NOT_JSON)
         return content
     except ValueError:
-        raise SynapseError(400, "Content not JSON.")
+        raise SynapseError(400, "Content not JSON.", errcode=Codes.NOT_JSON)
 
 
 def register_servlets(hs, http_server):
