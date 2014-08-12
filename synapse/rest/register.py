@@ -51,8 +51,15 @@ class RegisterRestServlet(RestServlet):
         (user_id, token) = yield handler.register(
             localpart=desired_user_id,
             password=password)
-        defer.returnValue((200,
-                           {"user_id": user_id, "access_token": token}))
+
+        result = {
+            "user_id": user_id,
+            "access_token": token,
+            "home_server": self.hs.hostname,
+        }
+        defer.returnValue(
+            (200, result)
+        )
 
     def on_OPTIONS(self, request):
         return (200, {})

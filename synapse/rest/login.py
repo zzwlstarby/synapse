@@ -48,7 +48,13 @@ class LoginRestServlet(RestServlet):
         token = yield handler.login(
             user=login_submission["user"],
             password=login_submission["password"])
-        defer.returnValue((200, {"access_token": token}))
+
+        result = {
+            "access_token": token,
+            "home_server": self.hs.hostname,
+        }
+
+        defer.returnValue((200, result))
 
 
 class LoginFallbackRestServlet(RestServlet):
