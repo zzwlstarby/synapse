@@ -75,12 +75,17 @@ class DirectoryHandler(BaseHandler):
                 urllib.quote(room_alias.to_string())
             )
 
-            result = yield self.http_client.get_json(
-                destination=room_alias.domain,
-                path=path,
-            )
+            result = None
+            try:
+                result = yield self.http_client.get_json(
+                    destination=room_alias.domain,
+                    path=path,
+                )
+            except:
+                # TODO(erikj): Handle this better?
+                logger.exception("Failed to get remote room alias")
 
-            if "room_id" in result and "servers" in result:
+            if result and "room_id" in result and "servers" in result:
                 room_id = result["room_id"]
                 servers = result["servers"]
 
