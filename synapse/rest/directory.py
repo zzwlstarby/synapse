@@ -16,7 +16,7 @@
 from twisted.internet import defer
 
 from synapse.types import RoomAlias, RoomID
-from base import RestServlet, InvalidHttpRequestError, client_path_pattern
+from base import RestServlet, client_path_pattern
 
 import json
 import logging

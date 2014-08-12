@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ This module contains base REST classes for constructing REST servlets. """
-from synapse.api.errors import cs_error, CodeMessageException
 import re
 
 
@@ -112,26 +111,3 @@ class RestServlet(object):
                     http_server.register_path(method, pattern, method_handler)
         else:
             raise NotImplementedError("RestServlet must register something.")
-
-
-class InvalidHttpRequestError(CodeMessageException):
-    """ Raised when an invalid request was submitted from the client.
-
-    This class provides the ability to get a suitable return HTTP status
-    code and body to send back to the client.
-    """
-
-    def __init__(self, code, body, json_wrap=True):
-        super(InvalidHttpRequestError, self).__init__(code, body)
-        if json_wrap:
-            self.http_body = cs_error(body, code)
-        else:
-            self.http_body = body
-
-    def get_status_code(self):
-        """ Returns a suitable HTTP status code for this exception. """
-        return self.code
-
-    def get_response_body(self):
-        """ Returns a suitable HTTP response body for this exception. """
-        return self.http_body

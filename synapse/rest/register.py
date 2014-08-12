@@ -15,7 +15,8 @@
 """This module contains REST servlets to do with registration: /register"""
 from twisted.internet import defer
 
-from base import RestServlet, InvalidHttpRequestError, client_path_pattern
+from synapse.api.errors import SynapseError
+from base import RestServlet, client_path_pattern
 
 import json
 import urllib
@@ -36,14 +37,12 @@ class RegisterRestServlet(RestServlet):
             if type(register_json["user_id"]) == unicode:
                 desired_user_id = register_json["user_id"]
                 if urllib.quote(desired_user_id) != desired_user_id:
-                    raise InvalidHttpRequestError(
+                    raise SynapseError(
                         400,
                         "User ID must only contain characters which do not " +
                         "require URL encoding.")
         except ValueError:
             defer.returnValue((400, "No JSON object."))
-        except InvalidHttpRequestError as e:
-            defer.returnValue((e.get_status_code(), e.get_response_body()))
         except KeyError:
             pass  # user_id is optional
 

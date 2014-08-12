@@ -24,6 +24,7 @@ class Codes(object):
     USER_IN_USE = "M_USER_IN_USE"
     ROOM_IN_USE = "M_ROOM_IN_USE"
     BAD_PAGINATION = "M_BAD_PAGINATION"
+    UNKNOWN = "M_UNKNOWN"
 
 
 class CodeMessageException(Exception):
@@ -38,7 +39,7 @@ class CodeMessageException(Exception):
 
 class SynapseError(CodeMessageException):
     """A base error which can be caught for all synapse events."""
-    def __init__(self, code, msg, err=""):
+    def __init__(self, code, msg, errcode=""):
         """Constructs a synapse error.
 
         Args:
@@ -47,7 +48,7 @@ class SynapseError(CodeMessageException):
             err (str): The error code e.g 'M_FORBIDDEN'
         """
         super(SynapseError, self).__init__(code, msg)
-        self.errcode = err
+        self.errcode = errcode
 
 
 class RoomError(SynapseError):
@@ -62,7 +63,11 @@ class RegistrationError(SynapseError):
 
 class AuthError(SynapseError):
     """An error raised when there was a problem authorising an event."""
-    pass
+
+    def __init__(self, *args, **kwargs):
+        if "errcode" not in kwargs:
+            kwargs["errcode"] = Codes.FORBIDDEN
+        super(AuthError, self).__init__(*args, **kwargs)
 
 
 class EventStreamError(SynapseError):
@@ -80,7 +85,16 @@ class StoreError(SynapseError):
     pass
 
 
-def cs_error(msg, code=0, **kwargs):
+def cs_exception(exception):
+    if isinstance(exception, SynapseError):
+        return cs_error(exception.msg, exception.errcode)
+    elif isinstance(exception, CodeMessageException):
+        return cs_error(exception.msg)
+    else:
+        logging.error("Unknown exception type: %s", type(exception))
+
+
+def cs_error(msg, code=Codes.UNKNOWN, **kwargs):
     """ Utility method for constructing an error response for client-server
     interactions.
 

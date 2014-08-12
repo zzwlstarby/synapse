@@ -16,7 +16,7 @@
 from syutil.jsonutil import (
     encode_canonical_json, encode_pretty_printed_json
 )
-from synapse.api.errors import cs_error, CodeMessageException
+from synapse.api.errors import cs_exception, CodeMessageException
 
 from twisted.internet import defer, reactor
 from twisted.web import server, resource
@@ -123,7 +123,7 @@ class TwistedHttpServer(HttpServer, resource.Resource):
             self._send_response(
                 request,
                 e.code,
-                cs_error(e.msg)
+                cs_exception(e)
             )
         except Exception as e:
             logger.exception(e)

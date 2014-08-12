@@ -15,8 +15,8 @@
 """ This module contains REST servlets to do with rooms: /rooms/<paths> """
 from twisted.internet import defer
 
-from base import RestServlet, InvalidHttpRequestError, client_path_pattern
-from synapse.api.errors import SynapseError, cs_error
+from base import RestServlet, client_path_pattern
+from synapse.api.errors import SynapseError
 from synapse.api.events.room import (RoomTopicEvent, MessageEvent,
                                      RoomMemberEvent, FeedbackEvent)
 from synapse.api.constants import Feedback, Membership
@@ -50,36 +50,25 @@ class RoomCreateRestServlet(RestServlet):
 
     @defer.inlineCallbacks
     def on_PUT(self, request, room_id):
-        try:
-            room_id = urllib.unquote(room_id)
-            auth_user = yield self.auth.get_user_by_req(request)
+        room_id = urllib.unquote(room_id)
+        auth_user = yield self.auth.get_user_by_req(request)
 
-            if not room_id:
-                raise InvalidHttpRequestError(
-                    400, "PUT must specify a room ID")
+        if not room_id:
+            raise SynapseError(400, "PUT must specify a room ID")
 
-            room_config = self.get_room_config(request)
-            info = yield self.make_room(room_config, auth_user, room_id)
-            info.update(room_config)
-            defer.returnValue((200, info))
-        except SynapseError as e:
-            defer.returnValue((e.code, cs_error(e.msg)))
-        except InvalidHttpRequestError as he:
-            defer.returnValue((he.get_status_code(), he.get_response_body()))
+        room_config = self.get_room_config(request)
+        info = yield self.make_room(room_config, auth_user, room_id)
+        info.update(room_config)
+        defer.returnValue((200, info))
 
     @defer.inlineCallbacks
     def on_POST(self, request):
-        try:
-            auth_user = yield self.auth.get_user_by_req(request)
+        auth_user = yield self.auth.get_user_by_req(request)
 
-            room_config = self.get_room_config(request)
-            info = yield self.make_room(room_config, auth_user, None)
-            info.update(room_config)
-            defer.returnValue((200, info))
-        except SynapseError as e:
-            defer.returnValue((e.code, cs_error(e.msg)))
-        except InvalidHttpRequestError as he:
-            defer.returnValue((he.get_status_code(), he.get_response_body()))
+        room_config = self.get_room_config(request)
+        info = yield self.make_room(room_config, auth_user, None)
+        info.update(room_config)
+        defer.returnValue((200, info))
 
     @defer.inlineCallbacks
     def make_room(self, room_config, auth_user, room_id):
@@ -101,7 +90,7 @@ class RoomCreateRestServlet(RestServlet):
                 user_supplied_config["visibility"] = "public"
             return user_supplied_config
         except (ValueError, TypeError):
-            raise InvalidHttpRequestError(400, "Body must be JSON.")
+            raise SynapseError(400, "Body must be JSON.")
 
     def on_OPTIONS(self, request):
         return (200, {})
@@ -126,7 +115,7 @@ class RoomTopicRestServlet(RestServlet):
         )
 
         if not data:
-            defer.returnValue((404, cs_error("Topic not found.")))
+            raise SynapseError(404, "Topic not found.")
         defer.returnValue((200, json.loads(data.content)))
 
     @defer.inlineCallbacks
@@ -188,7 +177,7 @@ class RoomMemberRestServlet(RestServlet):
         member = yield handler.get_room_member(room_id, target_user_id,
                                                user.to_string())
         if not member:
-            defer.returnValue((404, cs_error("Member not found.")))
+            raise SynapseError(404, "Member not found.")
         defer.returnValue((200, json.loads(member.content)))
 
     @defer.inlineCallbacks
@@ -214,15 +203,12 @@ class RoomMemberRestServlet(RestServlet):
 
         content = _parse_json(request)
         if "membership" not in content:
-            raise SynapseError(400, cs_error("No membership key"))
+            raise SynapseError(400, "No membership key.")
 
         valid_membership_values = [Membership.JOIN, Membership.INVITE]
         if (content["membership"] not in valid_membership_values):
-            raise SynapseError(
-                400, cs_error("Membership value must be %s." % (
-                    valid_membership_values,
-                ))
-            )
+            raise SynapseError(400, "Membership value must be %s." % (
+                    valid_membership_values,))
 
         event = self.event_factory.create_event(
             etype=self.get_event_type(),
@@ -257,7 +243,7 @@ class MessageRestServlet(RestServlet):
                                             )
 
         if not msg:
-            defer.returnValue((404, cs_error("Message not found.")))
+            raise SynapseError(404, "Message not found.")
 
         defer.returnValue((200, json.loads(msg.content)))
 
@@ -313,7 +299,7 @@ class FeedbackRestServlet(RestServlet):
         )
 
         if not feedback:
-            defer.returnValue((404, cs_error("Feedback not found.")))
+            raise SynapseError(404, "Feedback not found.")
 
         defer.returnValue((200, json.loads(feedback.content)))
 
