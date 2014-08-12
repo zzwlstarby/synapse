@@ -61,7 +61,7 @@ class RoomMemberHandlerTestCase(unittest.TestCase):
 
     @defer.inlineCallbacks
     def test_invite(self):
-        room_id = "foo"
+        room_id = "!foo:red"
         user_id = "@bob:red"
         target_user_id = "@red:blue"
         content = {"membership": Membership.INVITE}
@@ -112,7 +112,7 @@ class RoomMemberHandlerTestCase(unittest.TestCase):
 
     @defer.inlineCallbacks
     def test_simple_join(self):
-        room_id = "foo"
+        room_id = "!foo:red"
         user_id = "@bob:red"
         user = self.hs.parse_userid(user_id)
         target_user_id = "@bob:red"
@@ -335,7 +335,7 @@ class RoomCreationTest(unittest.TestCase):
     @defer.inlineCallbacks
     def test_room_creation(self):
         user_id = "@foo:red"
-        room_id = "bobs_room"
+        room_id = "!bobs_room:red"
         config = {"visibility": "private"}
 
         yield self.room_creation_handler.create_room(

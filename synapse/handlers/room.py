@@ -293,9 +293,9 @@ class RoomCreationHandler(BaseHandler):
 
         if room_id:
             # Ensure room_id is the correct type
-            # room_id_obj = RoomID.from_string(room_id, self.hs)
-            # if not room_id_obj.is_mine:
-            #    raise SynapseError(400, "Room id must be local")
+            room_id_obj = RoomID.from_string(room_id, self.hs)
+            if not room_id_obj.is_mine:
+                raise SynapseError(400, "Room id must be local")
 
             yield self.store.store_room(
                 room_id=room_id,
