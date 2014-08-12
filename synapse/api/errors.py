@@ -87,7 +87,9 @@ class StoreError(SynapseError):
 
 def cs_exception(exception):
     if isinstance(exception, SynapseError):
-        return cs_error(exception.msg, exception.errcode)
+        return cs_error(
+            exception.msg,
+            Codes.UNKNOWN if not exception.errcode else exception.errcode)
     elif isinstance(exception, CodeMessageException):
         return cs_error(exception.msg)
     else:
