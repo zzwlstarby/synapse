@@ -24,12 +24,16 @@ class ClientDirectoryServer(RestServlet):
     @defer.inlineCallbacks
     def on_GET(self, request, room_alias):
         # TODO(erikj): Handle request
+        local_only = "local_only" in request.args
 
         room_alias = urllib.unquote(room_alias)
         room_alias_obj = RoomAlias.from_string(room_alias, self.hs)
 
         dir_handler = self.handlers.directory_handler
-        res = yield dir_handler.get_association(room_alias_obj)
+        res = yield dir_handler.get_association(
+            room_alias_obj,
+            local_only=local_only
+        )
 
         defer.returnValue((200, res))
 
@@ -57,7 +61,9 @@ class ClientDirectoryServer(RestServlet):
         dir_handler = self.handlers.directory_handler
 
         try:
-            yield dir_handler.create_association(room_alias_obj, room_id, servers)
+            yield dir_handler.create_association(
+                room_alias_obj, room_id, servers
+            )
         except:
             logger.exception("Failed to create association")
 

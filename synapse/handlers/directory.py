@@ -7,6 +7,8 @@ from synapse.api.errors import SynapseError
 
 import logging
 import json
+import urllib
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,7 @@ class DirectoryHandler(BaseHandler):
     def __init__(self, hs):
         super(DirectoryHandler, self).__init__(hs)
         self.hs = hs
+        self.http_client = hs.get_http_client()
         self.clock = hs.get_clock()
 
     @defer.inlineCallbacks
@@ -37,25 +40,37 @@ class DirectoryHandler(BaseHandler):
         )
 
     @defer.inlineCallbacks
-    def get_association(self, room_alias):
+    def get_association(self, room_alias, local_only=False):
         # TODO(erikj): Do auth
 
+        room_id = None
         if room_alias.is_mine:
             result = yield self.store.get_association_from_room_alias(
                 room_alias
             )
-        else:
+
+            room_id = result.room_id
+            servers = result.servers
+        elif not local_only:
             # TODO(erikj): Hit out to remote HS.
-            raise NotImplementedError("Can't do remote room alias fetching")
+            prefix = ""
+            path = "%s/ds/room/%s?local_only=1" % (
+                prefix,
+                urllib.quote(room_alias.to_string())
+            )
 
-        # TODO(erikj): Handle result
+            result = self.http_client.get_json(
+                destination=room_alias.domain,
+                path=path,
+            )
 
-        if not result:
+            if "room_id" in result and "servers" in result:
+                room_id = result["room_id"]
+                servers = result["servers"]
+
+        if not room_id:
             defer.returnValue({})
             return
-
-        room_id = result.room_id
-        servers = result.servers
 
         defer.returnValue({
             "room_id": room_id,
