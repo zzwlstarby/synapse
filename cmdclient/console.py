@@ -276,6 +276,14 @@ class SynapseCmd(cmd.Cmd):
         except Exception as e:
             print e
 
+    def do_joinalias(self, line):
+        try:
+            args = self._parse(line, ["roomname"], force_keys=True)
+            path = "/join/%s" % urllib.quote(args["roomname"])
+            reactor.callFromThread(self._run_and_pprint, "PUT", path, {})
+        except Exception as e:
+            print e
+
     def do_topic(self, line):
         """"topic [set|get] <roomid> [<newtopic>]"
         Set the topic for a room: topic set <roomid> <newtopic>
@@ -420,29 +428,26 @@ class SynapseCmd(cmd.Cmd):
 
     def do_create(self, line):
         """Creates a room.
-        "create [public|private] <roomid>" - Create a room <roomid> with the
+        "create [public|private] <roomname>" - Create a room <roomname> with the
                                              specified visibility.
-        "create <roomid>" - Create a room <roomid> with default visibility.
+        "create <roomname>" - Create a room <roomname> with default visibility.
         "create [public|private]" - Create a room with specified visibility.
         "create" - Create a room with default visibility.
         """
-        args = self._parse(line, ["vis", "roomid"])
+        args = self._parse(line, ["vis", "roomname"])
         # fixup args depending on which were set
         body = {}
         if "vis" in args and args["vis"] in ["public", "private"]:
             body["visibility"] = args["vis"]
 
-        room_id = None
-        if "roomid" in args:
-            room_id = args["roomid"]
+        if "roomname" in args:
+            room_name = args["roomname"]
+            body["room_alias_name"] = room_name
         elif "vis" in args and args["vis"] not in ["public", "private"]:
-            room_id = args["vis"]
+            room_name = args["vis"]
+            body["room_alias_name"] = room_name
 
-        if room_id:
-            path = "/rooms/%s" % urllib.quote(room_id)
-            reactor.callFromThread(self._run_and_pprint, "PUT", path, body)
-        else:
-            reactor.callFromThread(self._run_and_pprint, "POST", "/rooms", body)
+        reactor.callFromThread(self._run_and_pprint, "POST", "/rooms", body)
 
     def do_raw(self, line):
         """Directly send a JSON object: "raw <method> <path> <data> <notoken>"
