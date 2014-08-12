@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from . import (
-    room, events, register, profile, public, presence, directory
     room, events, register, profile, public, presence, im, directory
 )
 
