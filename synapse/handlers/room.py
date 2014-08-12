@@ -293,8 +293,11 @@ class RoomCreationHandler(BaseHandler):
             something went horribly wrong.
         """
 
-        if "room_alias" in config:
-            room_alias = RoomAlias.from_string(config["room_alias"], self.hs)
+        if "room_alias_name" in config:
+            room_alias = RoomAlias.create_local(
+                config["room_alias_name"],
+                self.hs
+            )
             mapping = yield self.store.get_association_from_room_alias(
                 room_alias
             )
