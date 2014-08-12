@@ -3,6 +3,7 @@ angular.module('RoomController', [])
                                function($scope, $http, $timeout, $routeParams, $location, matrixService) {
    'use strict';
     $scope.room_id = $routeParams.room_id;
+    $scope.room_alias = matrixService.getRoomIdToAliasMapping($scope.room_id);
     $scope.state = {
         user_id: matrixService.config().user_id,
         events_from: "START"

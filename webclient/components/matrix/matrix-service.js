@@ -6,7 +6,8 @@ angular.module('matrixService', [])
    /* 
     * Permanent storage of user information
     * The config contains:
-    *    - homeserver
+    *    - homeserver url
+    *    - Identity server url
     *    - user_id
     *    - access_token
     *    - version: the version of this cache
@@ -16,6 +17,7 @@ angular.module('matrixService', [])
     // Current version of permanent storage
     var configVersion = 0;
     var prefixPath = "/matrix/client/api/v1";
+    var MAPPING_PREFIX = "alias_for_";
 
     var doRequest = function(method, path, params, data) {
         // Inject the access token
@@ -76,13 +78,11 @@ angular.module('matrixService', [])
         // Create a room
         create: function(room_id, visibility) {
             // The REST path spec
-            var path = "/rooms/$room_id";
+            var path = "/rooms";
 
-            // Customize it
-            path = path.replace("$room_id", room_id);
-
-            return doRequest("PUT", path, undefined, {
-                visibility: visibility
+            return doRequest("POST", path, undefined, {
+                visibility: visibility,
+                room_alias_name: room_id
             });
         },
 
@@ -293,6 +293,14 @@ angular.module('matrixService', [])
         saveConfig: function() {
             config.version = configVersion;
             localStorage.setItem("config", JSON.stringify(config));
+        },
+        
+        createRoomIdToAliasMapping: function(roomId, alias) {
+            localStorage.setItem(MAPPING_PREFIX+roomId, alias);
+        },
+        
+        getRoomIdToAliasMapping: function(roomId) {
+            return localStorage.getItem(MAPPING_PREFIX+roomId);
         }
 
     };

@@ -30,12 +30,26 @@ angular.module('RoomsController', ['matrixService'])
         emailCode: "", // the code entry box
         linkedEmailList: matrixService.config().emailList // linked email list
     };
+    
+    var assignRoomAliases = function(data) {
+        for (var i=0; i<data.length; i++) {
+            var alias = matrixService.getRoomIdToAliasMapping(data[i].room_id);
+            if (alias) {
+                data[i].room_alias = alias;
+            }
+            else {
+                data[i].room_alias = data[i].room_id;
+            }
+        }
+        return data;
+    };
 
     $scope.refresh = function() {
         // List all rooms joined or been invited to
         $scope.rooms = matrixService.rooms();
         matrixService.rooms().then(
-            function(data) { 
+            function(data) {
+                data = assignRoomAliases(data);
                 $scope.feedback = "Success";
                 $scope.rooms = data;
             },
@@ -45,7 +59,7 @@ angular.module('RoomsController', ['matrixService'])
         
         matrixService.publicRooms().then(
             function(data) {
-                $scope.public_rooms = data.chunk;
+                $scope.public_rooms = assignRoomAliases(data.chunk);
             }
         );
     };
@@ -58,8 +72,12 @@ angular.module('RoomsController', ['matrixService'])
         }
         
         matrixService.create(room_id, visibility).then(
-            function() { 
+            function(response) { 
                 // This room has been created. Refresh the rooms list
+                console.log("Created room " + response.room_alias + " with id: "+
+                response.room_id);
+                matrixService.createRoomIdToAliasMapping(
+                    response.room_id, response.room_alias);
                 $scope.refresh();
             },
             function(reason) {
