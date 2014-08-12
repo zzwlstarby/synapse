@@ -561,6 +561,8 @@ class RoomMemberHandler(BaseHandler):
 
         yield self._do_join(new_event, room_host=host, do_auth=True)
 
+        defer.returnValue({"room_id": room_id})
+
     @defer.inlineCallbacks
     def _do_join(self, event, room_host=None, do_auth=True, broadcast_msg=True):
         joinee = self.hs.parse_userid(event.target_user_id)
