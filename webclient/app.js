@@ -1,6 +1,6 @@
 var matrixWebClient = angular.module('matrixWebClient', [
     'ngRoute',
-    'AppController',
+    'MatrixWebClientController',
     'LoginController',
     'RoomController',
     'RoomsController',
