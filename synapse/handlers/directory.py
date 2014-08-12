@@ -66,8 +66,9 @@ class DirectoryHandler(BaseHandler):
                 room_alias
             )
 
-            room_id = result.room_id
-            servers = result.servers
+            if result:
+                room_id = result.room_id
+                servers = result.servers
         elif not local_only:
             path = "%s/ds/room/%s?local_only=1" % (
                 PREFIX,
