@@ -7,7 +7,6 @@ from base import RestServlet, InvalidHttpRequestError, client_path_pattern
 
 import json
 import logging
-import re
 import urllib
 
 

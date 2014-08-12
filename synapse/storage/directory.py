@@ -45,7 +45,9 @@ class DirectoryStore(SQLBaseStore):
             defer.returnValue(None)
             return
 
-        defer.returnValue(RoomAliasMapping(room_id, room_alias.to_string(), servers))
+        defer.returnValue(
+            RoomAliasMapping(room_id, room_alias.to_string(), servers)
+        )
 
     @defer.inlineCallbacks
     def create_room_alias_association(self, room_alias, room_id, servers):
@@ -76,4 +78,3 @@ class DirectoryStore(SQLBaseStore):
                     "server": server,
                 }
             )
-

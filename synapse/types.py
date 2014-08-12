@@ -60,6 +60,7 @@ class RoomAlias(DomainSpecificString):
     """Structure representing a room name."""
     SIGIL = "#"
 
+
 class RoomID(DomainSpecificString):
     """Structure representing a room id. """
     SIGIL = "!"
