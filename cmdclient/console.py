@@ -13,7 +13,6 @@ import sys
 import time
 import urllib
 import urlparse
-import os
 
 import nacl.signing
 import nacl.encoding

@@ -4,8 +4,8 @@
 
 'use strict';
 
-angular.module('AppController', ['matrixService'])
-.controller('AppController', ['$scope', '$location', '$rootScope', 'matrixService',
+angular.module('MatrixWebClientController', ['matrixService'])
+.controller('MatrixWebClientController', ['$scope', '$location', '$rootScope', 'matrixService',
                                function($scope, $location, $rootScope, matrixService) {
          
     // Check current URL to avoid to display the logout button on the login page
