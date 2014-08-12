@@ -59,7 +59,7 @@ class DirectoryHandler(BaseHandler):
                 urllib.quote(room_alias.to_string())
             )
 
-            result = self.http_client.get_json(
+            result = yield self.http_client.get_json(
                 destination=room_alias.domain,
                 path=path,
             )
