@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 PREFIX = "/matrix/client/api/v1"
 
 
-
 class DirectoryHandler(BaseHandler):
 
     def __init__(self, hs):
@@ -57,9 +56,8 @@ class DirectoryHandler(BaseHandler):
             room_id = result.room_id
             servers = result.servers
         elif not local_only:
-                prefix = ""
             path = "%s/ds/room/%s?local_only=1" % (
-                prefix,
+                PREFIX,
                 urllib.quote(room_alias.to_string())
             )
 
