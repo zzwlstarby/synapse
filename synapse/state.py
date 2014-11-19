@@ -146,7 +146,8 @@ class StateHandler(object):
         otherwise `None`.
         """
         state_groups = yield self.store.get_state_groups(
-            event_ids
+            event_ids,
+            auth_only=True,
         )
 
         group_names = set(state_groups.keys())

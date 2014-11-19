@@ -458,7 +458,7 @@ class SQLBaseStore(object):
             **d
         )
 
-    def _get_events_txn(self, txn, event_ids):
+    def _get_events_txn(self, txn, event_ids, simplified=False):
         # FIXME (erikj): This should be batched?
 
         sql = "SELECT * FROM events WHERE event_id = ?"
@@ -467,67 +467,66 @@ class SQLBaseStore(object):
         for e_id in event_ids:
             c = txn.execute(sql, (e_id,))
             event_rows.extend(self.cursor_to_dict(c))
+        return self._parse_events_txn(txn, event_rows, simplified=simplified)
 
-        return self._parse_events_txn(txn, event_rows)
-
-    def _parse_events(self, rows):
+    def _parse_events(self, rows, ):
         return self.runInteraction(
             "_parse_events", self._parse_events_txn, rows
         )
 
-    def _parse_events_txn(self, txn, rows):
+    def _parse_events_txn(self, txn, rows, simplified=False):
         events = [self._parse_event_from_row(r) for r in rows]
 
         select_event_sql = "SELECT * FROM events WHERE event_id = ?"
 
         for i, ev in enumerate(events):
-            signatures = self._get_event_signatures_txn(
-                txn, ev.event_id,
-            )
-
-            ev.signatures = {
-                n: {
-                    k: encode_base64(v) for k, v in s.items()
+            if not simplified:
+                signatures = self._get_event_signatures_txn(
+                    txn, ev.event_id,
+                )
+                ev.signatures = {
+                    n: {
+                        k: encode_base64(v) for k, v in s.items()
+                    }
+                    for n, s in signatures.items()
                 }
-                for n, s in signatures.items()
-            }
 
-            hashes = self._get_event_content_hashes_txn(
-                txn, ev.event_id,
-            )
+                hashes = self._get_event_content_hashes_txn(
+                    txn, ev.event_id,
+                )
 
-            ev.hashes = {
-                k: encode_base64(v) for k, v in hashes.items()
-            }
+                ev.hashes = {
+                    k: encode_base64(v) for k, v in hashes.items()
+                }
 
-            prevs = self._get_prev_events_and_state(txn, ev.event_id)
+                prevs = self._get_prev_events_and_state(txn, ev.event_id)
 
-            ev.prev_events = [
-                (e_id, h)
-                for e_id, h, is_state in prevs
-                if is_state == 0
-            ]
-
-            ev.auth_events = self._get_auth_events(txn, ev.event_id)
-
-            if hasattr(ev, "state_key"):
-                ev.prev_state = [
+                ev.prev_events = [
                     (e_id, h)
                     for e_id, h, is_state in prevs
-                    if is_state == 1
+                    if is_state == 0
                 ]
 
-                if hasattr(ev, "replaces_state"):
-                    # Load previous state_content.
-                    # FIXME (erikj): Handle multiple prev_states.
-                    cursor = txn.execute(
-                        select_event_sql,
-                        (ev.replaces_state,)
-                    )
-                    prevs = self.cursor_to_dict(cursor)
-                    if prevs:
-                        prev = self._parse_event_from_row(prevs[0])
-                        ev.prev_content = prev.content
+                ev.auth_events = self._get_auth_events(txn, ev.event_id)
+
+                if hasattr(ev, "state_key"):
+                    ev.prev_state = [
+                        (e_id, h)
+                        for e_id, h, is_state in prevs
+                        if is_state == 1
+                    ]
+
+                    if hasattr(ev, "replaces_state"):
+                        # Load previous state_content.
+                        # FIXME (erikj): Handle multiple prev_states.
+                        cursor = txn.execute(
+                            select_event_sql,
+                            (ev.replaces_state,)
+                        )
+                        prevs = self.cursor_to_dict(cursor)
+                        if prevs:
+                            prev = self._parse_event_from_row(prevs[0])
+                            ev.prev_content = prev.content
 
             if not hasattr(ev, "redacted"):
                 logger.debug("Doesn't have redacted key: %s", ev)

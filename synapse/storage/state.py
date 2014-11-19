@@ -15,6 +15,8 @@
 
 from ._base import SQLBaseStore
 
+import time
+
 
 class StateStore(SQLBaseStore):
     """ Keeps track of the state at a given event.
@@ -35,45 +37,49 @@ class StateStore(SQLBaseStore):
       * `state_groups_state`: Maps state group to state events.
     """
 
-    def get_state_groups(self, event_ids):
+    def get_state_groups(self, event_ids, auth_only=False):
         """ Get the state groups for the given list of event_ids
 
         The return value is a dict mapping group names to lists of events.
         """
 
         def f(txn):
-            groups = set()
-            for event_id in event_ids:
-                group = self._simple_select_one_onecol_txn(
-                    txn,
-                    table="event_to_state_groups",
-                    keyvalues={"event_id": event_id},
-                    retcol="state_group",
-                    allow_none=True,
-                )
-                if group:
-                    groups.add(group)
+            if not event_ids:
+                return {}
 
-            res = {}
-            for group in groups:
-                state_ids = self._simple_select_onecol_txn(
-                    txn,
-                    table="state_groups_state",
-                    keyvalues={"state_group": group},
-                    retcol="event_id",
-                )
-                state = []
-                for state_id in state_ids:
-                    s = self._get_events_txn(
-                        txn,
-                        [state_id],
+            sql = (
+                "SELECT s.state_group, e.* FROM events as e "
+                "INNER JOIN state_groups_state as s "
+                "ON e.event_id = s.event_id "
+                "INNER JOIN event_to_state_groups as es "
+                "ON s.state_group = es.state_group "
+                "WHERE "
+            )
+
+            sql = sql + " OR ".join(["es.event_id = ? " for _ in event_ids])
+
+            c = txn.execute(sql, event_ids)
+            ds = self.cursor_to_dict(c)
+
+            if auth_only:
+                ds[:] = [
+                    (r.pop("state_group"), self._parse_event_from_row(r))
+                    for r in ds
+                ]
+            else:
+                ds[:] = [
+                    (
+                        r.pop("state_group"),
+                        self._parse_events_txn(txn, [r])
                     )
-                    if s:
-                        state.extend(s)
+                    for r in ds
+                ]
 
-                res[group] = state
+            ret = {}
+            for r in ds:
+                ret.setdefault(r[0], []).append(r[1])
 
-            return res
+            return ret
 
         return self.runInteraction(
             "get_state_groups",
