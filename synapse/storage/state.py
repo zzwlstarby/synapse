@@ -64,14 +64,20 @@ class StateStore(SQLBaseStore):
 
             res = {}
             for group in groups:
-                state_ids = self._simple_select_onecol_txn(
-                    txn,
-                    table="state_groups_state",
-                    keyvalues={"state_group": group},
-                    retcol="event_id",
+                sql = (
+                    "SELECT e.internal_metadata, e.json, r.event_id, rej.reason"
+                    " FROM event_json as e"
+                    " INNER JOIN state_groups_state as s ON s.event_id = e.event_id"
+                    " LEFT JOIN redactions as r ON e.event_id = r.redacts"
+                    " LEFT JOIN rejections as rej on rej.event_id = e.event_id"
+                    " WHERE s.state_group = ?"
                 )
 
-                state = self._get_events_txn(txn, state_ids)
+                txn.execute(sql, (group,))
+                state = [
+                    self._get_event_from_row_txn(txn, *r)
+                    for r in txn.fetchall()
+                ]
 
                 res[group] = state
 
