@@ -64,22 +64,12 @@ class StateStore(SQLBaseStore):
 
             res = {}
             for group in groups:
-                sql = (
-                    "SELECT e.internal_metadata, e.json, r.event_id, rej.reason"
-                    " FROM event_json as e"
-                    " INNER JOIN state_groups_state as s ON s.event_id = e.event_id"
-                    " LEFT JOIN redactions as r ON e.event_id = r.redacts"
-                    " LEFT JOIN rejections as rej on rej.event_id = e.event_id"
-                    " WHERE s.state_group = ?"
+                res[group] = self._retrieve_events(
+                    txn,
+                    "INNER JOIN state_groups_state as s ON s.event_id = ej.event_id"
+                    " WHERE s.state_group = ?",
+                    (group,)
                 )
-
-                txn.execute(sql, (group,))
-                state = [
-                    self._get_event_from_row_txn(txn, *r)
-                    for r in txn.fetchall()
-                ]
-
-                res[group] = state
 
             return res
 

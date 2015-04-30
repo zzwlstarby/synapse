@@ -862,6 +862,25 @@ class SQLBaseStore(object):
         else:
             return None
 
+    def _retrieve_events(self, txn, end_clause, args, allow_rejected=False):
+        sql = (
+            "SELECT ej.internal_metadata, ej.json, red.event_id, rej.reason "
+            "FROM event_json as ej "
+            "LEFT JOIN redactions as red ON ej.event_id = red.redacts "
+            "LEFT JOIN rejections as rej on rej.event_id = ej.event_id  "
+        ) + end_clause
+
+        txn.execute(sql, args)
+        rows = txn.fetchall()
+
+        results = [
+            self._get_event_from_row_txn(txn, *row[:3])
+            for row in rows
+            if allow_rejected or not row[3]
+        ]
+
+        return results
+
     def _get_event_from_row_txn(self, txn, internal_metadata, js, redacted,
                                 check_redacted=True, get_prev_content=False,
                                 rejected_reason=None):
