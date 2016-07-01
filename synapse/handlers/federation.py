@@ -784,7 +784,7 @@ class FederationHandler(BaseHandler):
             # Why are you sending me invite requests for a different domain?
             raise SynapseError(400, "Invalid user id", Codes.INVALID_USERNAME)
 
-        event.state_key = self.correct_user_id_casing(event.state_key)
+        event.state_key = yield self.correct_user_id_casing(event.state_key)
 
         event.internal_metadata.outlier = True
         event.internal_metadata.invite_from_remote = True
