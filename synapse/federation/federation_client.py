@@ -520,6 +520,8 @@ class FederationClient(FederationBase):
         pdu = self.event_from_pdu_json(pdu_dict)
 
         # Check signatures are correct.
+        # the remote server may have changed the state_key, which will invalidate
+        # our signature
         pdu = yield self._check_sigs_and_hash(pdu)
 
         # FIXME: We should handle signature failures more gracefully.

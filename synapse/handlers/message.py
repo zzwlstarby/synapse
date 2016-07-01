@@ -17,7 +17,8 @@ from twisted.internet import defer
 
 from synapse.api.constants import EventTypes, Membership
 from synapse.api.errors import AuthError, Codes, SynapseError
-from synapse.crypto.event_signing import add_hashes_and_signatures
+from synapse.crypto.event_signing import add_hashes_and_signatures, \
+    compute_event_signature
 from synapse.events.utils import serialize_event
 from synapse.events.validator import EventValidator
 from synapse.push.action_generator import ActionGenerator
@@ -947,3 +948,12 @@ class MessageHandler(BaseHandler):
             # (TODO: it would be nice to delay signing the event until we
             # have got past this point, to avoid doing the signing twice.)
             pass
+
+        # the invitee may have been updated. We need to correct our signature
+        # on the event.
+        event.signatures.update(
+            compute_event_signature(
+                self.hs.hostname,
+                self.hs.config.signing_key[0]
+            )
+        )
