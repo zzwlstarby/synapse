@@ -140,8 +140,14 @@ class HomeServer(object):
         # X-Forwarded-For is handled by our custom request type.
         return request.getClientIP()
 
-    def is_mine(self, domain_specific_string):
-        return domain_specific_string.domain == self.hostname
+    def is_mine(self, domain_specific_string, ignore_case=False):
+        d1 = domain_specific_string.domain
+        d2 = self.hostname
+        if ignore_case:
+            # no casefold in python2, but these should be ascii anyway
+            d1 = d1.lower()
+            d2 = d2.lower()
+        return d1 == d2
 
     def is_mine_id(self, string):
         return string.split(":", 1)[1] == self.hostname

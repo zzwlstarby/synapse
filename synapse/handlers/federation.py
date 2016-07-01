@@ -22,7 +22,7 @@ from ._base import BaseHandler
 
 from synapse.api.errors import (
     AuthError, FederationError, StoreError, CodeMessageException, SynapseError,
-)
+    Codes)
 from synapse.api.constants import EventTypes, Membership, RejectedReason
 from synapse.events.validator import EventValidator
 from synapse.util import unwrapFirstError
@@ -59,6 +59,9 @@ class FederationHandler(BaseHandler):
         to be sent to remote home servers.
         c) doing the necessary dances to invite remote users and join remote
         rooms.
+
+        Args:
+            hs (synapse.server.HomeServer):
     """
 
     def __init__(self, hs):
@@ -776,6 +779,13 @@ class FederationHandler(BaseHandler):
         """
         event = pdu
 
+        invitee = event.state_key
+        if not self.hs.is_mine(UserID.from_string(invitee), ignore_case=True):
+            # Why are you sending me invite requests for a different domain?
+            raise SynapseError(400, "Invalid user id", Codes.INVALID_USERNAME)
+
+        event.state_key = self.correct_user_id_casing(event.state_key)
+
         event.internal_metadata.outlier = True
         event.internal_metadata.invite_from_remote = True
 
@@ -794,11 +804,10 @@ class FederationHandler(BaseHandler):
             context=context,
         )
 
-        target_user = UserID.from_string(event.state_key)
         with PreserveLoggingContext():
             self.notifier.on_new_room_event(
                 event, event_stream_id, max_stream_id,
-                extra_users=[target_user],
+                extra_users=[UserID.from_string(invitee)],
             )
 
         defer.returnValue(event)

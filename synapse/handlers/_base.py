@@ -15,7 +15,7 @@
 
 from twisted.internet import defer
 
-from synapse.api.errors import LimitExceededError
+from synapse.api.errors import LimitExceededError, Codes, SynapseError
 from synapse.api.constants import Membership, EventTypes
 from synapse.types import UserID, Requester
 
@@ -131,3 +131,36 @@ class BaseHandler(object):
                 )
             except Exception as e:
                 logger.warn("Error kicking guest user: %s" % (e,))
+
+    @defer.inlineCallbacks
+    def correct_user_id_casing(self, user_id):
+        """Corrects the case of user_id if it corresponds to a local user.
+
+        Args:
+            user_id (str): user id to be checked
+
+        Returns:
+            str: user id with corrected case
+
+        Raises:
+            SynapseError if user_id does not exactly match a registered user,
+            and matches more than one user case-insensitively.
+        """
+        users = yield self.store.get_users_by_id_case_insensitive(user_id)
+
+        if not users:
+            # not a recognised user; we accept the invite anyway to stop people
+            # enumerating registered users.
+            defer.returnValue(user_id)
+
+        if user_id in users:
+            # preserve the original casing of the localpart
+            defer.returnValue(user_id)
+
+        if len(users) > 1:
+            raise SynapseError(
+                400,
+                "Username %s is ambiguous" % user_id,
+            )
+
+        defer.returnValue(users.keys()[0])

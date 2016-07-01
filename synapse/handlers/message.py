@@ -797,6 +797,16 @@ class MessageHandler(BaseHandler):
         if ratelimit:
             self.ratelimit(requester)
 
+        # if this is an invite, we need to correct the case of the target,
+        # *before* we do the auth check (otherwise we can boot @bob:matrix.org
+        # by inviting @BOB:matrix.org).
+        #
+        # in the case of federation, that means sending the request to the
+        # the remote server, which also signs the event.
+        if event.type == EventTypes.Member:
+            if event.content["membership"] == Membership.INVITE:
+                yield self._handle_new_invite_event(event, context.current_state)
+
         try:
             self.auth.check(event, auth_events=context.current_state)
         except AuthError as err:
@@ -819,46 +829,6 @@ class MessageHandler(BaseHandler):
                         "Room alias %s does not point to the room" % (
                             room_alias_str,
                         )
-                    )
-
-        federation_handler = self.hs.get_handlers().federation_handler
-
-        if event.type == EventTypes.Member:
-            if event.content["membership"] == Membership.INVITE:
-                def is_inviter_member_event(e):
-                    return (
-                        e.type == EventTypes.Member and
-                        e.sender == event.sender
-                    )
-
-                event.unsigned["invite_room_state"] = [
-                    {
-                        "type": e.type,
-                        "state_key": e.state_key,
-                        "content": e.content,
-                        "sender": e.sender,
-                    }
-                    for k, e in context.current_state.items()
-                    if e.type in self.hs.config.room_invite_state_types
-                    or is_inviter_member_event(e)
-                ]
-
-                invitee = UserID.from_string(event.state_key)
-                if not self.hs.is_mine(invitee):
-                    # TODO: Can we add signature from remote server in a nicer
-                    # way? If we have been invited by a remote server, we need
-                    # to get them to sign the event.
-
-                    returned_invite = yield federation_handler.send_invite(
-                        invitee.domain,
-                        event,
-                    )
-
-                    event.unsigned.pop("room_state", None)
-
-                    # TODO: Make sure the signatures actually are correct.
-                    event.signatures.update(
-                        returned_invite.signatures
                     )
 
         if event.type == EventTypes.Redaction:
@@ -921,6 +891,59 @@ class MessageHandler(BaseHandler):
         # If invite, remove room_state from unsigned before sending.
         event.unsigned.pop("invite_room_state", None)
 
+        federation_handler = self.hs.get_handlers().federation_handler
         federation_handler.handle_new_event(
             event, destinations=destinations,
         )
+
+    @defer.inlineCallbacks
+    def _handle_new_invite_event(self, event, room_state):
+        def is_inviter_member_event(e):
+            return (
+                e.type == EventTypes.Member and
+                e.sender == event.sender
+            )
+
+        event.unsigned["invite_room_state"] = [
+            {
+                "type": e.type,
+                "state_key": e.state_key,
+                "content": e.content,
+                "sender": e.sender,
+            }
+            for k, e in room_state.items()
+            if e.type in self.hs.config.room_invite_state_types
+            or is_inviter_member_event(e)
+        ]
+
+        invitee = event.state_key
+        user_id = UserID.from_string(invitee)
+
+        if self.hs.is_mine(user_id, ignore_case=True):
+            event.state_key = yield self.correct_user_id_casing(invitee)
+
+        else:
+            # TODO: Can we add signature from remote server in a nicer
+            # way? If we have been invited by a remote server, we need
+            # to get them to sign the event.
+            federation_handler = self.hs.get_handlers().federation_handler
+
+            returned_invite = yield federation_handler.send_invite(
+                user_id.domain,
+                event,
+            )
+
+            event.unsigned.pop("room_state", None)
+
+            # TODO: Make sure the signatures actually are correct.
+            event.signatures.update(
+                returned_invite.signatures
+            )
+            event.state_key = returned_invite.state_key
+
+        if event.state_key != invitee:
+            # the invitee has been updated. We need to correct our signature
+            # on the event.
+            # (TODO: it would be nice to delay signing the event until we
+            # have got past this point, to avoid doing the signing twice.)
+            pass
