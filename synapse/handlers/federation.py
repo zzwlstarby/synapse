@@ -779,8 +779,7 @@ class FederationHandler(BaseHandler):
         """
         event = pdu
 
-        invitee = event.state_key
-        if not self.hs.is_mine(UserID.from_string(invitee), ignore_case=True):
+        if not self.hs.is_mine(UserID.from_string(event.state_key), ignore_case=True):
             # Why are you sending me invite requests for a different domain?
             raise SynapseError(400, "Invalid user id", Codes.INVALID_USERNAME)
 
@@ -804,10 +803,11 @@ class FederationHandler(BaseHandler):
             context=context,
         )
 
+        target_user = UserID.from_string(event.state_key)
         with PreserveLoggingContext():
             self.notifier.on_new_room_event(
                 event, event_stream_id, max_stream_id,
-                extra_users=[UserID.from_string(invitee)],
+                extra_users=[target_user],
             )
 
         defer.returnValue(event)

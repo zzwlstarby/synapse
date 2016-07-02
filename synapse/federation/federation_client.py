@@ -513,20 +513,15 @@ class FederationClient(FederationBase):
             content=pdu.get_pdu_json(time_now),
         )
 
+        # the only things we're interested in are the remote signature, and the
+        # state_key.
         pdu_dict = content["event"]
+        result = {
+            "user_id": content["event"]["state_key"],
+            "signatures": content["event"]["signatures"],
+        }
 
-        logger.debug("Got response to send_invite: %s", pdu_dict)
-
-        pdu = self.event_from_pdu_json(pdu_dict)
-
-        # Check signatures are correct.
-        # the remote server may have changed the state_key, which will invalidate
-        # our signature
-        pdu = yield self._check_sigs_and_hash(pdu)
-
-        # FIXME: We should handle signature failures more gracefully.
-
-        defer.returnValue(pdu)
+        defer.returnValue(result)
 
     @defer.inlineCallbacks
     def send_leave(self, destinations, pdu):

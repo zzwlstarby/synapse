@@ -15,7 +15,7 @@
 
 from twisted.internet import defer
 
-from synapse.api.errors import LimitExceededError, Codes, SynapseError
+from synapse.api.errors import LimitExceededError, SynapseError
 from synapse.api.constants import Membership, EventTypes
 from synapse.types import UserID, Requester
 
@@ -135,6 +135,10 @@ class BaseHandler(object):
     @defer.inlineCallbacks
     def correct_user_id_casing(self, user_id):
         """Corrects the case of user_id if it corresponds to a local user.
+
+        If it does not match a registered user, returns the user_id unchanged.
+
+        If it matches more than one registered user, raises a SynapseError.
 
         Args:
             user_id (str): user id to be checked

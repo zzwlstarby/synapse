@@ -924,12 +924,11 @@ class MessageHandler(BaseHandler):
             event.state_key = yield self.correct_user_id_casing(invitee)
 
         else:
-            # TODO: Can we add signature from remote server in a nicer
-            # way? If we have been invited by a remote server, we need
-            # to get them to sign the event.
+            # If we are inviting a user on a remote server, we need
+            # to get them to check the userid and sign the event.
             federation_handler = self.hs.get_handlers().federation_handler
 
-            returned_invite = yield federation_handler.send_invite(
+            invite_result = yield federation_handler.send_invite(
                 user_id.domain,
                 event,
             )
@@ -938,21 +937,23 @@ class MessageHandler(BaseHandler):
 
             # TODO: Make sure the signatures actually are correct.
             event.signatures.update(
-                returned_invite.signatures
+                invite_result["signatures"]
             )
-            event.state_key = returned_invite.state_key
 
-        if event.state_key != invitee:
-            # the invitee has been updated. We need to correct our signature
-            # on the event.
-            # (TODO: it would be nice to delay signing the event until we
-            # have got past this point, to avoid doing the signing twice.)
-            pass
+            # TODO: should we limit the amount of fiddling with the userid we
+            # accept from the remote server? This is intented for case-
+            # insensitivity, but maybe it's reasonable for the remote server to
+            # invite a completely different userid?
+            event.state_key = invite_result["user_id"]
 
         # the invitee may have been updated. We need to correct our signature
         # on the event.
+        #
+        # (In the case of a local user, we could avoid signing the event until
+        # we get here, to avoid doing the signing twice, but that's tiresome).
         event.signatures.update(
             compute_event_signature(
+                event,
                 self.hs.hostname,
                 self.hs.config.signing_key[0]
             )
