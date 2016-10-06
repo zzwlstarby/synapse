@@ -243,6 +243,7 @@ class AuthHandler(BaseHandler):
         sess = self._get_session_info(session_id)
         return sess.setdefault('serverdict', {}).get(key, default)
 
+    @defer.inlineCallbacks
     def _check_password_auth(self, authdict, _):
         if "user" not in authdict or "password" not in authdict:
             raise LoginError(400, "", Codes.MISSING_PARAM)
@@ -252,7 +253,15 @@ class AuthHandler(BaseHandler):
         if not user_id.startswith('@'):
             user_id = UserID.create(user_id, self.hs.hostname).to_string()
 
-        return self._check_password(user_id, password)
+        canonical_user_id = yield self._check_password(user_id, password)
+        if canonical_user_id:
+            defer.returnValue(canonical_user_id)
+
+        # unknown username or invalid password
+        raise LoginError(
+            401, "Invalid password",
+            errcode=Codes.FORBIDDEN
+        )
 
     @defer.inlineCallbacks
     def _check_recaptcha(self, authdict, clientip):
@@ -365,6 +374,7 @@ class AuthHandler(BaseHandler):
 
         return self.sessions[session_id]
 
+    @defer.inlineCallbacks
     def validate_password_login(self, user_id, password):
         """
         Authenticates the user with their username and password.
@@ -380,7 +390,15 @@ class AuthHandler(BaseHandler):
             StoreError if there was a problem accessing the database
             LoginError if there was an authentication problem.
         """
-        return self._check_password(user_id, password)
+        canonical_user_id = yield self._check_password(user_id, password)
+        if canonical_user_id:
+            defer.returnValue(canonical_user_id)
+
+        # unknown username or invalid password
+        raise LoginError(
+            403, "Invalid password",
+            errcode=Codes.FORBIDDEN
+        )
 
     @defer.inlineCallbacks
     def get_login_tuple_for_user_id(self, user_id, device_id=None,
@@ -438,37 +456,40 @@ class AuthHandler(BaseHandler):
             defer.Deferred: (str) canonical_user_id, or None if zero or
             multiple matches
         """
-        try:
-            res = yield self._find_user_id_and_pwd_hash(user_id)
+        res = yield self._find_user_id_and_pwd_hash(user_id)
+        if res is not None:
             defer.returnValue(res[0])
-        except LoginError:
-            defer.returnValue(None)
+        defer.returnValue(None)
 
     @defer.inlineCallbacks
     def _find_user_id_and_pwd_hash(self, user_id):
         """Checks to see if a user with the given id exists. Will check case
-        insensitively, but will throw if there are multiple inexact matches.
+        insensitively, but will return None if there are multiple inexact
+        matches.
 
         Returns:
             tuple: A 2-tuple of `(canonical_user_id, password_hash)`
+            None: if there is not exactly one match
         """
         user_infos = yield self.store.get_users_by_id_case_insensitive(user_id)
+
+        result = None
         if not user_infos:
             logger.warn("Attempted to login as %s but they do not exist", user_id)
-            raise LoginError(403, "", errcode=Codes.FORBIDDEN)
-
-        if len(user_infos) > 1:
-            if user_id not in user_infos:
-                logger.warn(
-                    "Attempted to login as %s but it matches more than one user "
-                    "inexactly: %r",
-                    user_id, user_infos.keys()
-                )
-                raise LoginError(403, "", errcode=Codes.FORBIDDEN)
-
-            defer.returnValue((user_id, user_infos[user_id]))
+        elif len(user_infos) == 1:
+            # a single match (possibly not exact)
+            result = user_infos.popitem()
+        elif user_id in user_infos:
+            # multiple matches, but one is exact
+            result = (user_id, user_infos[user_id])
         else:
-            defer.returnValue(user_infos.popitem())
+            # multiple matches, none of them exact
+            logger.warn(
+                "Attempted to login as %s but it matches more than one user "
+                "inexactly: %r",
+                user_id, user_infos.keys()
+            )
+        defer.returnValue(result)
 
     @defer.inlineCallbacks
     def _check_password(self, user_id, password):
@@ -480,9 +501,7 @@ class AuthHandler(BaseHandler):
         Args:
             user_id (str): complete @user:id
         Returns:
-            (str) the canonical_user_id
-        Raises:
-            LoginError if the password was incorrect
+            (str) the canonical_user_id, or None if unknown user / bad password
         """
         valid_ldap = yield self._check_ldap_password(user_id, password)
         if valid_ldap:
@@ -501,15 +520,16 @@ class AuthHandler(BaseHandler):
         Args:
             user_id (str): complete @user:id
         Returns:
-            (str) the canonical_user_id
-        Raises:
-            LoginError if the password was incorrect
+            (str) the canonical_user_id, or None if unknown user / bad password
         """
-        user_id, password_hash = yield self._find_user_id_and_pwd_hash(user_id)
+        lookupres = yield self._find_user_id_and_pwd_hash(user_id)
+        if not lookupres:
+            defer.returnValue(None)
+        (user_id, password_hash) = lookupres
         result = self.validate_hash(password, password_hash)
         if not result:
             logger.warn("Failed password login for user %s", user_id)
-            raise LoginError(401, "Invalid password", errcode=Codes.FORBIDDEN)
+            defer.returnValue(None)
         defer.returnValue(user_id)
 
     @defer.inlineCallbacks
