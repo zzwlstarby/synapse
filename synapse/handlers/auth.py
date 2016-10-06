@@ -148,13 +148,20 @@ class AuthHandler(BaseHandler):
         creds = session['creds']
 
         # check auth type currently being presented
+        errordict = {}
         if 'type' in authdict:
             if authdict['type'] not in self.checkers:
                 raise LoginError(400, "", Codes.UNRECOGNIZED)
-            result = yield self.checkers[authdict['type']](authdict, clientip)
-            if result:
-                creds[authdict['type']] = result
-                self._save_session(session)
+            try:
+                result = yield self.checkers[authdict['type']](authdict, clientip)
+                if result:
+                    creds[authdict['type']] = result
+                    self._save_session(session)
+            except LoginError, e:
+                if e.code == 401:
+                    errordict = e.error_dict()
+                else:
+                    raise e
 
         for f in flows:
             if len(set(f) - set(creds.keys())) == 0:
@@ -163,6 +170,7 @@ class AuthHandler(BaseHandler):
 
         ret = self._auth_dict_for_flows(flows, session)
         ret['completed'] = creds.keys()
+        ret.update(errordict)
         defer.returnValue((False, ret, clientdict, session['id']))
 
     @defer.inlineCallbacks
@@ -501,7 +509,7 @@ class AuthHandler(BaseHandler):
         result = self.validate_hash(password, password_hash)
         if not result:
             logger.warn("Failed password login for user %s", user_id)
-            raise LoginError(403, "", errcode=Codes.FORBIDDEN)
+            raise LoginError(401, "Invalid password", errcode=Codes.FORBIDDEN)
         defer.returnValue(user_id)
 
     @defer.inlineCallbacks
