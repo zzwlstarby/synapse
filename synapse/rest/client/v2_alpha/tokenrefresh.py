@@ -31,6 +31,7 @@ class TokenRefreshRestServlet(RestServlet):
     def __init__(self, hs):
         super(TokenRefreshRestServlet, self).__init__()
         self.hs = hs
+        self.macaroons = hs.get_macaroons
         self.store = hs.get_datastore()
 
     @defer.inlineCallbacks
@@ -40,7 +41,7 @@ class TokenRefreshRestServlet(RestServlet):
             old_refresh_token = body["refresh_token"]
             auth_handler = self.hs.get_auth_handler()
             refresh_result = yield self.store.exchange_refresh_token(
-                old_refresh_token, auth_handler.generate_refresh_token
+                old_refresh_token, self.macaroons.generate_refresh_token
             )
             (user_id, new_refresh_token, device_id) = refresh_result
             new_access_token = yield auth_handler.issue_access_token(

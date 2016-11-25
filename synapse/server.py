@@ -24,6 +24,7 @@ import logging
 from twisted.enterprise import adbapi
 from twisted.web.client import BrowserLikePolicyForHTTPS
 
+import synapse.api.macaroons
 from synapse.api.auth import Auth
 from synapse.api.filtering import Filtering
 from synapse.api.ratelimiting import Ratelimiter
@@ -83,6 +84,7 @@ class HomeServer(object):
         'http_client',
         'db_pool',
         'persistence_service',
+        'macaroons',
         'replication_layer',
         'datastore',
         'handlers',
@@ -156,6 +158,9 @@ class HomeServer(object):
 
     def is_mine_id(self, string):
         return string.split(":", 1)[1] == self.hostname
+
+    def build_macaroons(self):
+        return synapse.api.macaroons.Macaroons(self)
 
     def build_replication_layer(self):
         return initialize_http_replication(self)

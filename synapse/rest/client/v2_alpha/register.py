@@ -53,6 +53,7 @@ class RegisterRequestTokenRestServlet(RestServlet):
         super(RegisterRequestTokenRestServlet, self).__init__()
         self.hs = hs
         self.identity_handler = hs.get_handlers().identity_handler
+        self.macaroons = hs.get_macaroons()
 
     @defer.inlineCallbacks
     def on_POST(self, request):
@@ -427,7 +428,7 @@ class RegisterRestServlet(RestServlet):
             generate_token=False,
             make_guest=True
         )
-        access_token = self.auth_handler.generate_access_token(
+        access_token = self.macaroons.generate_access_token(
             user_id, ["guest = true"]
         )
         # XXX the "guest" caveat is not copied by /tokenrefresh. That's ok

@@ -147,6 +147,7 @@ class StateTestCase(unittest.TestCase):
         )
         hs = Mock(spec_set=[
             "get_datastore", "get_auth", "get_state_handler", "get_clock",
+            "get_macaroons",
         ])
         hs.get_datastore.return_value = self.store
         hs.get_state_handler.return_value = None

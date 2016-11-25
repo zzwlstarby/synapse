@@ -222,7 +222,7 @@ class AuthTestCase(unittest.TestCase):
         with self.assertRaises(AuthError) as cm:
             yield self.auth.get_user_from_macaroon(macaroon.serialize())
         self.assertEqual(401, cm.exception.code)
-        self.assertIn("No user caveat", cm.exception.msg)
+        self.assertIn("Invalid macaroon", cm.exception.msg)
 
     @defer.inlineCallbacks
     def test_get_user_from_macaroon_wrong_key(self):

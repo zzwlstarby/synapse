@@ -22,6 +22,7 @@ from signedjson.sign import verify_signed_json, SignatureVerifyException
 from twisted.internet import defer
 from unpaddedbase64 import decode_base64
 
+import synapse.api.macaroons
 import synapse.types
 from synapse.api.constants import EventTypes, Membership, JoinRules
 from synapse.api.errors import AuthError, Codes, SynapseError, EventSizeError
@@ -50,6 +51,10 @@ class Auth(object):
         self.clock = hs.get_clock()
         self.store = hs.get_datastore()
         self.state = hs.get_state_handler()
+        self.macaroons = hs.get_macaroons()
+
+        # note that, despite its ALL_CAPS name, this is *not* a constant: it is
+        # set by HomeServer.build_v1auth.
         self.TOKEN_NOT_FOUND_HTTP_STATUS = 401
 
     @defer.inlineCallbacks
@@ -697,20 +702,10 @@ class Auth(object):
     @defer.inlineCallbacks
     def get_user_from_macaroon(self, macaroon_str, rights="access"):
         try:
-            macaroon = pymacaroons.Macaroon.deserialize(macaroon_str)
+            user_id, guest = self.macaroons.validate_access_token_and_extract_user_id(
+                macaroon_str, rights)
 
-            user_id = self.get_user_id_from_macaroon(macaroon)
             user = UserID.from_string(user_id)
-
-            self.validate_macaroon(
-                macaroon, rights, self.hs.config.expire_access_token,
-                user_id=user_id,
-            )
-
-            guest = False
-            for caveat in macaroon.caveats:
-                if caveat.caveat_id == "guest = true":
-                    guest = True
 
             if guest:
                 ret = {
@@ -757,68 +752,6 @@ class Auth(object):
                 self.TOKEN_NOT_FOUND_HTTP_STATUS, "Invalid macaroon passed.",
                 errcode=Codes.UNKNOWN_TOKEN
             )
-
-    def get_user_id_from_macaroon(self, macaroon):
-        """Retrieve the user_id given by the caveats on the macaroon.
-
-        Does *not* validate the macaroon.
-
-        Args:
-            macaroon (pymacaroons.Macaroon): The macaroon to validate
-
-        Returns:
-            (str) user id
-
-        Raises:
-            AuthError if there is no user_id caveat in the macaroon
-        """
-        user_prefix = "user_id = "
-        for caveat in macaroon.caveats:
-            if caveat.caveat_id.startswith(user_prefix):
-                return caveat.caveat_id[len(user_prefix):]
-        raise AuthError(
-            self.TOKEN_NOT_FOUND_HTTP_STATUS, "No user caveat in macaroon",
-            errcode=Codes.UNKNOWN_TOKEN
-        )
-
-    def validate_macaroon(self, macaroon, type_string, verify_expiry, user_id):
-        """
-        validate that a Macaroon is understood by and was signed by this server.
-
-        Args:
-            macaroon(pymacaroons.Macaroon): The macaroon to validate
-            type_string(str): The kind of token required (e.g. "access", "refresh",
-                              "delete_pusher")
-            verify_expiry(bool): Whether to verify whether the macaroon has expired.
-                This should really always be True, but there exist access tokens
-                in the wild which expire when they should not, so we can't
-                enforce expiry yet.
-            user_id (str): The user_id required
-        """
-        v = pymacaroons.Verifier()
-
-        # the verifier runs a test for every caveat on the macaroon, to check
-        # that it is met for the current request. Each caveat must match at
-        # least one of the predicates specified by satisfy_exact or
-        # specify_general.
-        v.satisfy_exact("gen = 1")
-        v.satisfy_exact("type = " + type_string)
-        v.satisfy_exact("user_id = %s" % user_id)
-        v.satisfy_exact("guest = true")
-        if verify_expiry:
-            v.satisfy_general(self._verify_expiry)
-        else:
-            v.satisfy_general(lambda c: c.startswith("time < "))
-
-        v.verify(macaroon, self.hs.config.macaroon_secret_key)
-
-    def _verify_expiry(self, caveat):
-        prefix = "time < "
-        if not caveat.startswith(prefix):
-            return False
-        expiry = int(caveat[len(prefix):])
-        now = self.hs.get_clock().time_msec()
-        return now < expiry
 
     @defer.inlineCallbacks
     def _look_up_user_by_access_token(self, token):

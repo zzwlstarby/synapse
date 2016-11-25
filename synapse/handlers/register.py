@@ -36,6 +36,7 @@ class RegistrationHandler(BaseHandler):
         super(RegistrationHandler, self).__init__(hs)
 
         self.auth = hs.get_auth()
+        self.macaroons = hs.get_macaroons()
         self.captcha_client = CaptchaServerHttpClient(hs)
 
         self._next_generated_user_id = None
@@ -143,7 +144,7 @@ class RegistrationHandler(BaseHandler):
 
             token = None
             if generate_token:
-                token = self.auth_handler().generate_access_token(user_id)
+                token = self.macaroons.generate_access_token(user_id)
             yield self.store.register(
                 user_id=user_id,
                 token=token,
@@ -167,7 +168,7 @@ class RegistrationHandler(BaseHandler):
                 user_id = user.to_string()
                 yield self.check_user_id_not_appservice_exclusive(user_id)
                 if generate_token:
-                    token = self.auth_handler().generate_access_token(user_id)
+                    token = self.macaroons.generate_access_token(user_id)
                 try:
                     yield self.store.register(
                         user_id=user_id,
@@ -254,7 +255,7 @@ class RegistrationHandler(BaseHandler):
         user_id = user.to_string()
 
         yield self.check_user_id_not_appservice_exclusive(user_id)
-        token = self.auth_handler().generate_access_token(user_id)
+        token = self.macaroons.generate_access_token(user_id)
         try:
             yield self.store.register(
                 user_id=user_id,
@@ -399,7 +400,7 @@ class RegistrationHandler(BaseHandler):
 
         user = UserID(localpart, self.hs.hostname)
         user_id = user.to_string()
-        token = self.auth_handler().generate_access_token(user_id, None)
+        token = self.macaroons.generate_access_token(user_id, None)
 
         if need_register:
             yield self.store.register(
