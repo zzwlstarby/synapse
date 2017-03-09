@@ -20,6 +20,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# TODO: twisted have deprecated ssl.ContextFactory; instead we should use
+# a twisted.internet.ssl.CertificateOptions or make a
+# twisted.interfaces.IOpenSSLServerConnectionCreator.
+#
+# (see https://twistedmatrix.com/trac/ticket/7215).
 
 class ServerContextFactory(ssl.ContextFactory):
     """Factory for PyOpenSSL SSL contexts that are used to handle incoming

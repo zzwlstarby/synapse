@@ -107,6 +107,9 @@ def build_resource_for_web_client(hs):
 
 
 class SynapseHomeServer(HomeServer):
+    # list of SynapseSites
+    _sites = []
+
     def _listener_http(self, config, listener_config):
         port = listener_config["port"]
         bind_addresses = listener_config["bind_addresses"]
@@ -176,16 +179,17 @@ class SynapseHomeServer(HomeServer):
 
         root_resource = create_resource_tree(resources, root_resource)
 
+        logger_name = "synapse.access.%s.%s" % (
+            "https" if tls else "http", site_tag
+        )
+        site = SynapseSite(logger_name, site_tag, listener_config,
+                           root_resource)
+
         if tls:
             for address in bind_addresses:
                 reactor.listenSSL(
                     port,
-                    SynapseSite(
-                        "synapse.access.https.%s" % (site_tag,),
-                        site_tag,
-                        listener_config,
-                        root_resource,
-                    ),
+                    site,
                     self.tls_server_context_factory,
                     interface=address
                 )
@@ -193,15 +197,12 @@ class SynapseHomeServer(HomeServer):
             for address in bind_addresses:
                 reactor.listenTCP(
                     port,
-                    SynapseSite(
-                        "synapse.access.http.%s" % (site_tag,),
-                        site_tag,
-                        listener_config,
-                        root_resource,
-                    ),
+                    site,
                     interface=address
                 )
-        logger.info("Synapse now listening on port %d", port)
+        logger.info("Synapse now listening on port %d with site %s",
+                    port, site_tag)
+        self._sites.append(site)
 
     def start_listening(self):
         config = self.get_config()

@@ -13,12 +13,16 @@
 # limitations under the License.
 
 from synapse.util.logcontext import LoggingContext
+import twisted.internet.interfaces
 from twisted.web.server import Site, Request
 
 import contextlib
 import logging
 import re
 import time
+import zope
+
+logger = logging.getLogger(__name__)
 
 ACCESS_TOKEN_RE = re.compile(r'(\?.*access(_|%5[Ff])token=)[^&]*(.*)$')
 
@@ -142,5 +146,40 @@ class SynapseSite(Site):
         self.requestFactory = SynapseRequestFactory(self, proxied)
         self.access_logger = logging.getLogger(logger_name)
 
+        # map from address to True (for now)
+        self.connections = {}
+
     def log(self, request):
         pass
+
+    # TODO: we might well do better to build our own wrapper around an
+    # HTTPChannel, instead of using the _GenericHTTPChannelProtocolFactory
+    # thing. I'm slightly concerned that might change the leak, however.
+    def buildProtocol(self, addr):
+        logger.debug("Connection from %s:%i", addr.host, addr.port)
+        protocol = Site.buildProtocol(self, addr)
+
+        _makeConnection = protocol.makeConnection
+        def makeConnection(transport):
+            logger.debug("Make connection: %s: %r",
+                         transport.getPeer(), transport)
+            return _makeConnection(transport)
+        #protocol.makeConnection = makeConnection
+
+        def handshakeCompleted():
+            logger.debug("%s: %i: SSL handshake completed",
+                         addr.host, addr.port)
+        protocol.handshakeCompleted = handshakeCompleted
+        zope.interface.directlyProvides(protocol,
+            twisted.internet.interfaces.IHandshakeListener)
+
+        _connectionLost = protocol.connectionLost
+        def connectionLost(reason):
+            logger.debug("Connection %s:%i lost: %s",
+                         addr.host, addr.port, reason)
+            del self.connections[addr]
+            return _connectionLost(reason)
+        protocol.connectionLost = connectionLost
+
+        self.connections[addr] = True
+        return protocol
