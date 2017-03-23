@@ -22,6 +22,8 @@ them.
 See doc/log_contexts.rst for details on how this works.
 """
 
+import functools
+import sys
 from twisted.internet import defer
 
 import threading
@@ -259,6 +261,53 @@ class PreserveLoggingContext(object):
                     "Restoring dead context: %s",
                     self.current_context,
                 )
+
+
+real_inline_calbacks = defer.inlineCallbacks
+
+
+def inlineCallbacks(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        result = None
+        exc_info = None
+
+        context = LoggingContext.current_context()
+        gen = fn(*args, **kwargs)
+        try:
+            while True:
+                if exc_info is None:
+                    yielded = gen.send(result)
+                else:
+                    yielded = gen.throw(*exc_info)
+                if (isinstance(yielded, defer.Deferred)
+                        and not yielded.called):
+                    c = LoggingContext.current_context()
+                    if c != LoggingContext.sentinel:
+                        logger.warn(
+                            "Function %s yielding with non-sentinel context %s",
+                            fn, c
+                        )
+                try:
+                    result = yield yielded
+                    exc_info = None
+                except:
+                    # an exception was thrown back into the generator
+                    exc_info = sys.exc_info()
+        except:
+            c = LoggingContext.current_context()
+            if c != context:
+                logger.warn(
+                    "Function %s completing with unexpected context %s "
+                    "(expected %s)",
+                    fn, c, context
+                )
+            raise
+
+    return real_inline_calbacks(wrapper)
+
+
+defer.inlineCallbacks = inlineCallbacks
 
 
 class _PreservingContextDeferred(defer.Deferred):
