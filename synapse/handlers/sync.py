@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from synapse.api.constants import Membership, EventTypes
+from synapse.util import logcontext
 from synapse.util.async import concurrently_execute
 from synapse.util.logcontext import LoggingContext
 from synapse.util.metrics import Measure, measure_func
@@ -157,13 +158,18 @@ class SyncHandler(object):
         """
         result = self.response_cache.get(sync_config.request_key)
         if not result:
-            result = self.response_cache.set(
-                sync_config.request_key,
-                self._wait_for_sync_for_user(
-                    sync_config, since_token, timeout, full_state
-                )
+            deferred = logcontext.preserve_fn(self._wait_for_sync_for_user)(
+                sync_config, since_token, timeout, full_state
             )
-        return result
+
+            result = self.response_cache.set(
+                sync_config.request_key, deferred
+            )
+
+        # at this point, we still have our logcontext, and we need to wait for
+        # `result` (which is a regular deferred which won't restore the
+        # logcontext on callbacks).
+        return logcontext.make_deferred_yieldable(result)
 
     @defer.inlineCallbacks
     def _wait_for_sync_for_user(self, sync_config, since_token, timeout,
