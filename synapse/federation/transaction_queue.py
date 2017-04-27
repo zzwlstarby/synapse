@@ -14,6 +14,7 @@
 # limitations under the License.
 import datetime
 
+from synapse.util import logcontext
 from twisted.internet import defer
 
 from .persistence import TransactionActions
@@ -438,9 +439,12 @@ class TransactionQueue(object):
 
                 # END CRITICAL SECTION
 
-                success = yield self._send_new_transaction(
-                    destination, pending_pdus, pending_edus, pending_failures,
-                )
+                txn_id = str(self._next_txn_id)
+                with logcontext.LoggingContext("txn-" + txn_id):
+                    success = yield self._send_new_transaction(
+                        txn_id, destination,
+                        pending_pdus, pending_edus, pending_failures,
+                    )
                 if success:
                     sent_transactions_counter.inc()
                     # Remove the acknowledged device messages from the database
@@ -514,7 +518,7 @@ class TransactionQueue(object):
 
     @measure_func("_send_new_transaction")
     @defer.inlineCallbacks
-    def _send_new_transaction(self, destination, pending_pdus, pending_edus,
+    def _send_new_transaction(self, txn_id, destination, pending_pdus, pending_edus,
                               pending_failures):
 
         # Sort based on the order field
@@ -527,12 +531,10 @@ class TransactionQueue(object):
 
         logger.debug("TX [%s] _attempt_new_transaction", destination)
 
-        txn_id = str(self._next_txn_id)
-
         logger.debug(
-            "TX [%s] {%s} Attempting new transaction"
+            "TX [%s] Attempting new transaction"
             " (pdus: %d, edus: %d, failures: %d)",
-            destination, txn_id,
+            destination,
             len(pdus),
             len(edus),
             len(failures)
@@ -556,10 +558,9 @@ class TransactionQueue(object):
 
         logger.debug("TX [%s] Persisted transaction", destination)
         logger.info(
-            "TX [%s] {%s} Sending transaction [%s],"
+            "TX [%s] Sending transaction"
             " (PDUs: %d, EDUs: %d, failures: %d)",
-            destination, txn_id,
-            transaction.transaction_id,
+            destination,
             len(pdus),
             len(edus),
             len(failures),
@@ -599,14 +600,14 @@ class TransactionQueue(object):
 
             if e.code in (401, 404, 429) or 500 <= e.code:
                 logger.info(
-                    "TX [%s] {%s} got %d response",
-                    destination, txn_id, code
+                    "TX [%s] got %d response",
+                    destination, code
                 )
                 raise e
 
         logger.info(
-            "TX [%s] {%s} got %d response",
-            destination, txn_id, code
+            "TX [%s] got %d response",
+            destination, code
         )
 
         logger.debug("TX [%s] Sent transaction", destination)
