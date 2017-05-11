@@ -2031,7 +2031,14 @@ class EventsStore(SQLBaseStore):
             (room_id, topological_ordering,)
         )
         event_rows = txn.fetchall()
-        logger.info("[purge] found %i events before cutoff", len(event_rows))
+
+        to_delete = [
+            (event_id,) for event_id, state_key in event_rows
+            if state_key is None and not self.hs.is_mine_id(event_id)
+        ]
+        logger.info(
+            "[purge] found %i events before cutoff, of which %i are non-state"
+            " events to delete", len(event_rows), len(to_delete))
 
         for event_id, state_key in event_rows:
             txn.call_after(self._get_state_group_for_event.invalidate, (event_id,))
@@ -2177,11 +2184,6 @@ class EventsStore(SQLBaseStore):
         )
 
         # Delete all remote non-state events
-        to_delete = [
-            (event_id,) for event_id, state_key in event_rows
-            if state_key is None and not self.hs.is_mine_id(event_id)
-        ]
-        logger.info("[purge] found %i non-state events to delete", len(to_delete))
         for table in (
             "events",
             "event_json",
