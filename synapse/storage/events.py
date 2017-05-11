@@ -2022,6 +2022,8 @@ class EventsStore(SQLBaseStore):
                 400, "topological_ordering is greater than forward extremeties"
             )
 
+        logger.debug("[purge] looking for events to delete")
+
         txn.execute(
             "SELECT event_id, state_key FROM events"
             " LEFT JOIN state_events USING (room_id, event_id)"
@@ -2029,6 +2031,7 @@ class EventsStore(SQLBaseStore):
             (room_id, topological_ordering,)
         )
         event_rows = txn.fetchall()
+        logger.info("[purge] found %i events before cutoff", len(event_rows))
 
         for event_id, state_key in event_rows:
             txn.call_after(self._get_state_group_for_event.invalidate, (event_id,))
@@ -2080,6 +2083,7 @@ class EventsStore(SQLBaseStore):
         )
 
         state_rows = txn.fetchall()
+        logger.debug("[purge] found %i redundant state groups", len(state_rows))
 
         # make a set of the redundant state groups, so that we can look them up
         # efficiently
@@ -2177,6 +2181,7 @@ class EventsStore(SQLBaseStore):
             (event_id,) for event_id, state_key in event_rows
             if state_key is None and not self.hs.is_mine_id(event_id)
         ]
+        logger.info("[purge] found %i non-state events to delete", len(to_delete))
         for table in (
             "events",
             "event_json",
@@ -2200,7 +2205,7 @@ class EventsStore(SQLBaseStore):
             )
 
         # Mark all state and own events as outliers
-        logger.debug("[purge] marking events as outliers")
+        logger.debug("[purge] marking remaining events as outliers")
         txn.executemany(
             "UPDATE events SET outlier = ?"
             " WHERE event_id = ?",
@@ -2210,7 +2215,7 @@ class EventsStore(SQLBaseStore):
             ]
         )
 
-        logger.debug("[purge] done")
+        logger.info("[purge] done")
 
     @defer.inlineCallbacks
     def is_event_after(self, event_id1, event_id2):
