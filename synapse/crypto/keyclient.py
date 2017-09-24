@@ -13,14 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from synapse.util import logcontext
 from twisted.web.http import HTTPClient
 from twisted.internet.protocol import Factory
 from twisted.internet import defer, reactor
 from synapse.http.endpoint import matrix_federation_endpoint
-from synapse.util.logcontext import (
-    preserve_context_over_fn, preserve_context_over_deferred
-)
 import simplejson as json
 import logging
 
@@ -32,7 +29,10 @@ KEY_API_V1 = b"/_matrix/key/v1/"
 
 @defer.inlineCallbacks
 def fetch_server_key(server_name, ssl_context_factory, path=KEY_API_V1):
-    """Fetch the keys for a remote server."""
+    """Fetch the keys for a remote server.
+
+    Returns a (deferred) pair (server_response, server_certificate).
+    """
 
     factory = SynapseKeyClientFactory()
     factory.path = path
@@ -43,14 +43,13 @@ def fetch_server_key(server_name, ssl_context_factory, path=KEY_API_V1):
 
     for i in range(5):
         try:
-            protocol = yield preserve_context_over_fn(
-                endpoint.connect, factory
+            protocol = yield logcontext.make_deferred_yieldable(
+                endpoint.connect(factory),
             )
-            server_response, server_certificate = yield preserve_context_over_deferred(
+            result = yield logcontext.make_deferred_yieldable(
                 protocol.remote_key
             )
-            defer.returnValue((server_response, server_certificate))
-            return
+            defer.returnValue(result)
         except SynapseKeyClientError as e:
             logger.exception("Error getting key for %r" % (server_name,))
             if e.status.startswith("4"):
