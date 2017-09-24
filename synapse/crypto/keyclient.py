@@ -100,6 +100,8 @@ class SynapseKeyClientProtocol(HTTPClient):
             self.remote_key.callback(result)
 
     def handleStatus(self, version, status, message):
+        logger.debug("Got status from %s: %s",
+                     self.host, status)
         if status != b"200":
             # logger.info("Non-200 response from %s: %s %s",
             #            self.transport.getHost(), status, message)
@@ -111,6 +113,8 @@ class SynapseKeyClientProtocol(HTTPClient):
             self.transport.abortConnection()
 
     def handleResponse(self, response_body_bytes):
+        logger.debug("Got response from %s: %s",
+                     self.host, response_body_bytes)
         try:
             json_response = json.loads(response_body_bytes)
         except ValueError:
