@@ -129,7 +129,7 @@ class FederationServer(FederationBase):
         with (yield self._transaction_linearizer.queue(
                 (transaction.origin, transaction.transaction_id),
         )):
-            result = self._handle_incoming_transaction(
+            result = yield self._handle_incoming_transaction(
                 transaction, request_time,
             )
 
