@@ -17,6 +17,7 @@ import gc
 import logging
 import os
 import sys
+import threading
 
 import synapse
 import synapse.config.logger
@@ -440,6 +441,14 @@ def run(hs):
 
 def main():
     with LoggingContext("main"):
+        # hacky workaround for https://github.com/esnme/ultrajson/issues/254
+        # TODO: add this to the workers and fail gracefully if it's unsupported
+        #
+        # ujson likes to put 128KB of stuff on the stack, so our stack needs
+        # to be at least that big. musl's default is 80KB; glibc's is 8MB.
+        # Let's copy glibc?
+        threading.stack_size(8 * 1024 * 1024)
+
         # check base requirements
         check_requirements()
         hs = setup(sys.argv[1:])
