@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Copyright 2014-2016 OpenMarket Ltd
+# Copyright 2014-2017 Vector Creations Ltd
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from twisted.web.resource import EncodingResourceWrapper
+from twisted.web.server import GzipEncoderFactory
+
+from synapse.static import build_static_resource_map
+from synapse.rest.media import build_media_repo_resource_map
 
 from synapse.rest.client import (
     versions,
@@ -104,3 +110,23 @@ class ClientRestResource(JsonResource):
         sendtodevice.register_servlets(hs, client_resource)
         user_directory.register_servlets(hs, client_resource)
         groups.register_servlets(hs, client_resource)
+
+
+def build_client_resource_map(hs, resconfig):
+    client_resource = ClientRestResource(hs)
+    if resconfig["compress"]:
+        client_resource = gz_wrap(client_resource)
+    resource_map = {
+        "/_matrix/client/api/v1": client_resource,
+        "/_matrix/client/r0": client_resource,
+        "/_matrix/client/unstable": client_resource,
+        "/_matrix/client/v2_alpha": client_resource,
+        "/_matrix/client/versions": client_resource,
+    }
+    resource_map.update(build_static_resource_map(hs, resconfig))
+    resource_map.update(build_media_repo_resource_map(hs, resconfig))
+    return resource_map
+
+
+def gz_wrap(r):
+    return EncodingResourceWrapper(r, [GzipEncoderFactory()])

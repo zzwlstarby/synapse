@@ -37,3 +37,12 @@ class MetricsResource(Resource):
 
         # Encode as UTF-8 (default)
         return response.encode()
+
+
+def build_metrics_resource_map(hs, resconfig):
+    rm = {}
+    if hs.get_config().enable_metrics:
+        rm.update({
+            METRICS_PREFIX: MetricsResource(hs),
+        })
+    return rm

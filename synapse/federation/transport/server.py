@@ -22,6 +22,8 @@ from synapse.http.servlet import (
     parse_json_object_from_request, parse_integer_from_args, parse_string_from_args,
     parse_boolean_from_args,
 )
+from synapse.rest import build_media_repo_resource_map
+from synapse.rest.key import build_keys_resource_map
 from synapse.util.ratelimitutils import FederationRateLimiter
 from synapse.util.versionstring import get_version_string
 from synapse.util.logcontext import preserve_fn
@@ -1197,3 +1199,10 @@ def register_servlets(hs, resource, authenticator, ratelimiter):
             ratelimiter=ratelimiter,
             server_name=hs.hostname,
         ).register(resource)
+
+
+def build_federation_resource_map(hs, resconfig):
+    resource_map = {PREFIX: TransportLayerServer(hs)}
+    resource_map.update(build_media_repo_resource_map(hs, resconfig))
+    resource_map.update(build_keys_resource_map(hs, resconfig))
+    return resource_map

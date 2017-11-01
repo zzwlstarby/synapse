@@ -12,3 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from synapse.api.urls import SERVER_KEY_PREFIX, SERVER_KEY_V2_PREFIX
+from synapse.rest.key.v1.server_key_resource import LocalKey
+from synapse.rest.key.v2 import KeyApiV2Resource
+
+
+def build_keys_resource_map(hs, resconfig):
+    return {
+        SERVER_KEY_PREFIX: LocalKey(hs),
+        SERVER_KEY_V2_PREFIX: KeyApiV2Resource(hs),
+    }
