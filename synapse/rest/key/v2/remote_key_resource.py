@@ -89,6 +89,7 @@ class RemoteKey(Resource):
     isLeaf = True
 
     def __init__(self, hs):
+        Resource.__init__(self)
         self.keyring = hs.get_keyring()
         self.store = hs.get_datastore()
         self.version_string = hs.version_string
