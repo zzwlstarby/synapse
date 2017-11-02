@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from twisted.web.resource import Resource
-
 import logging
+
+from twisted.web.resource import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -26,73 +26,47 @@ def create_resource_tree(desired_tree, root_resource):
     child resources more than 1 level deep at a time.
 
     Args:
-        web_client (bool): True to enable the web client.
-        root_resource (twisted.web.resource.Resource): The root
-            resource to add the tree to.
+        desired_tree (dict[str, Resource])): Desired mapping from path to
+            resource.
+        root_resource (Resource): The root resource to add the tree to.
     Returns:
-        twisted.web.resource.Resource: the ``root_resource`` with a tree of
-        child resources added to it.
+        Resource: ``root_resource``
     """
 
-    # ideally we'd just use getChild and putChild but getChild doesn't work
-    # unless you give it a Request object IN ADDITION to the name :/ So
-    # instead, we'll store a copy of this mapping so we can actually add
-    # extra resources to existing nodes. See self._resource_id for the key.
-    resource_mappings = {}
-    for full_path, res in desired_tree.items():
-        logger.info("Attaching %s to path %s", res, full_path)
+    # keep track of the resources we've created
+    resource_mappings = {
+        '': root_resource,
+    }
+
+    # we sort the path list, as an easy way to start with the shallowest
+    # path.
+    for full_path in sorted(desired_tree.keys()):
+        # check that parents exist all the way down the tree
         last_resource = root_resource
+        path = ''
         for path_seg in full_path.split('/')[1:-1]:
-            if path_seg not in last_resource.listNames():
+            path = path + '/' + path_seg
+            child_resource = resource_mappings.get(path)
+            if not child_resource:
                 # resource doesn't exist, so make a "dummy resource"
+                logger.debug("Creating dummy resource for %s", path)
                 child_resource = Resource()
                 last_resource.putChild(path_seg, child_resource)
-                res_id = _resource_id(last_resource, path_seg)
-                resource_mappings[res_id] = child_resource
-                last_resource = child_resource
-            else:
-                # we have an existing Resource, use that instead.
-                res_id = _resource_id(last_resource, path_seg)
-                last_resource = resource_mappings[res_id]
+                resource_mappings[path] = child_resource
+            last_resource = child_resource
 
         # ===========================
         # now attach the actual desired resource
         last_path_seg = full_path.split('/')[-1]
 
-        # if there is already a resource here, thieve its children and
-        # replace it
-        res_id = _resource_id(last_resource, last_path_seg)
-        if res_id in resource_mappings:
-            # there is a dummy resource at this path already, which needs
-            # to be replaced with the desired resource.
-            existing_dummy_resource = resource_mappings[res_id]
-            for child_name in existing_dummy_resource.listNames():
-                child_res_id = _resource_id(
-                    existing_dummy_resource, child_name
-                )
-                child_resource = resource_mappings[child_res_id]
-                # steal the children
-                res.putChild(child_name, child_resource)
+        assert path + '/' + last_path_seg == full_path
+        if full_path in resource_mappings:
+            raise Exception("Duplicate mapping for URL %s", full_path)
 
-        # finally, insert the desired resource in the right place
+        res = desired_tree[full_path]
+        logger.info("Attaching %s to path %s", res, full_path)
+
         last_resource.putChild(last_path_seg, res)
-        res_id = _resource_id(last_resource, last_path_seg)
-        resource_mappings[res_id] = res
+        resource_mappings[full_path] = res
 
     return root_resource
-
-
-def _resource_id(resource, path_seg):
-    """Construct an arbitrary resource ID so you can retrieve the mapping
-    later.
-
-    If you want to represent resource A putChild resource B with path C,
-    the mapping should looks like _resource_id(A,C) = B.
-
-    Args:
-        resource (Resource): The *parent* Resourceb
-        path_seg (str): The name of the child Resource to be attached.
-    Returns:
-        str: A unique string which can be a key to the child Resource.
-    """
-    return "%s-%s" % (resource, path_seg)
