@@ -72,6 +72,10 @@ class EventBase(object):
 
         self._event_dict = event_dict
 
+        # some malformed events have no hashes. Avoid throwing exceptions
+        # later.
+        event_dict.setdefault("hashes", {})
+
         self.internal_metadata = _EventInternalMetadata(
             internal_metadata_dict
         )
