@@ -67,7 +67,8 @@ class StateGroupReadStore(SQLBaseStore):
             "*stateGroupCache*", 100000 * CACHE_SIZE_FACTOR
         )
 
-    @log_invalidate
+        self.__dict__['get_current_state_ids'] = log_invalidate(self.get_current_state_ids)
+
     @cached(max_entries=100000, iterable=True)
     def get_current_state_ids(self, room_id):
         """Get the current state event ids for a room based on the
