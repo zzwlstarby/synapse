@@ -306,8 +306,20 @@ class RoomListHandler(BaseHandler):
             "num_joined_members": num_joined_users,
         }
 
+        def inval_state(*args, **kwargs):
+            logger.info(
+                "Invalidating generate_room_entry due to state_ids change "
+                "room_id=%s key=%s", room_id, cache_context.key)
+            cache_context.invalidate(*args, **kwargs)
+
+        def inval_alias(*args, **kwargs):
+            logger.info(
+                "Invalidating generate_room_entry due to alias change "
+                "room_id=%s key=%s", room_id, cache_context.key)
+            cache_context.invalidate(*args, **kwargs)
+
         current_state_ids = yield self.store.get_current_state_ids(
-            room_id, on_invalidate=cache_context.invalidate,
+            room_id, on_invalidate=inval_state,
         )
 
         event_map = yield self.store.get_events([
@@ -337,7 +349,7 @@ class RoomListHandler(BaseHandler):
 
         if with_alias:
             aliases = yield self.store.get_aliases_for_room(
-                room_id, on_invalidate=cache_context.invalidate
+                room_id, on_invalidate=inval_alias,
             )
             if aliases:
                 result["aliases"] = aliases
