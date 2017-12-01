@@ -46,6 +46,7 @@ def log_invalidate(orig):
     def wrapped(*args, **kwargs):
         logger.info("Invalidating %s", args)
         return orig(*args, **kwargs)
+    return wrapped
 
 
 class StateGroupReadStore(SQLBaseStore):
