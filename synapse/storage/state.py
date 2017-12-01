@@ -42,6 +42,12 @@ class _GetStateGroupDelta(namedtuple("_GetStateGroupDelta", ("prev_group", "delt
         return len(self.delta_ids) if self.delta_ids else 0
 
 
+def log_invalidate(orig):
+    def wrapped(*args, **kwargs):
+        logger.info("Invalidating %s", args)
+        return orig(*args, **kwargs)
+
+
 class StateGroupReadStore(SQLBaseStore):
     """The read-only parts of StateGroupStore
 
@@ -60,6 +66,7 @@ class StateGroupReadStore(SQLBaseStore):
             "*stateGroupCache*", 100000 * CACHE_SIZE_FACTOR
         )
 
+    @log_invalidate
     @cached(max_entries=100000, iterable=True)
     def get_current_state_ids(self, room_id):
         """Get the current state event ids for a room based on the

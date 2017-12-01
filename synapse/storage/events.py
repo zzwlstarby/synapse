@@ -802,17 +802,8 @@ class EventsStore(SQLBaseStore):
                     txn, self.get_users_in_room, (room_id,)
                 )
 
-                def get_current_state_ids():
-                    pass
-
-                def inval(*args, **kwargs):
-                    logger.debug("Invalidating current state on %s", args)
-                    self.get_current_state_ids.invalidate(*args, **kwargs)
-
-                get_current_state_ids.invalidate = inval
-
                 self._invalidate_cache_and_stream(
-                    txn, get_current_state_ids, (room_id,)
+                    txn, self.get_current_state_ids, (room_id,)
                 )
 
     def _update_forward_extremities_txn(self, txn, new_forward_extremities,
