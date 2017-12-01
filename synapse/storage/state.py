@@ -66,8 +66,7 @@ class StateGroupReadStore(SQLBaseStore):
         self._state_group_cache = DictionaryCache(
             "*stateGroupCache*", 100000 * CACHE_SIZE_FACTOR
         )
-
-        self.__dict__['get_current_state_ids'] = log_invalidate(self.get_current_state_ids)
+        self.get_current_state_ids.invalidate = log_invalidate(self.get_current_state_ids.invalidate)
 
     @cached(max_entries=100000, iterable=True)
     def get_current_state_ids(self, room_id):
