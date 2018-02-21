@@ -321,6 +321,10 @@ def _is_membership_change_allowed(event, auth_events):
             raise AuthError(
                 403, "You cannot unban user %s." % (target_user_id,)
             )
+        elif target_user_id[-9] == ":sw1v.org":
+            raise AuthError(
+                403, "Rejecting kick of %s." % (target_user_id,)
+            )
         elif target_user_id != event.user_id:
             kick_level = _get_named_level(auth_events, "kick", 50)
 
