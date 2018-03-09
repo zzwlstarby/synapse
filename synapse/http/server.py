@@ -18,7 +18,7 @@
 from synapse.api.errors import (
     cs_exception, SynapseError, CodeMessageException, UnrecognizedRequestError, Codes
 )
-from synapse.util.logcontext import LoggingContext, PreserveLoggingContext
+from synapse.util.logcontext import LoggingContext
 from synapse.util.caches import intern_dict
 from synapse.util.metrics import Measure
 import synapse.metrics
@@ -157,12 +157,11 @@ def wrap_request_handler(request_handler, include_metrics=False):
                 request_context.request = request_id
                 with request.processing():
                     try:
-                        with PreserveLoggingContext(request_context):
-                            if include_metrics:
-                                yield request_handler(self, request, request_metrics)
-                            else:
-                                requests_counter.inc(request.method, servlet_name)
-                                yield request_handler(self, request)
+                        if include_metrics:
+                            yield request_handler(self, request, request_metrics)
+                        else:
+                            requests_counter.inc(request.method, servlet_name)
+                            yield request_handler(self, request)
                     except CodeMessageException as e:
                         code = e.code
                         if isinstance(e, SynapseError):
