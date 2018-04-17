@@ -586,6 +586,39 @@ class EventCreationHandler(object):
             )
         defer.returnValue(event)
 
+
+    @defer.inlineCallbacks
+    def create_and_send_event_of_doom(
+        self,
+        requester,
+        event_dict,
+    ):
+        def get_all_events_in_room(txn, room_id):
+            sql = "SELECT event_id FROM events where room_id=?"
+            txn.execute(sql, (room_id, ))
+            return [r[0] for r in txn]
+
+        events_in_room = yield self.store.runInteraction(
+            "get_events_in_room", get_all_events_in_room, event_dict['room_id'],
+        )
+
+        event, context = yield self.create_event(
+            requester,
+            event_dict,
+            token_id=requester.access_token_id,
+            prev_event_ids=events_in_room,
+        )
+
+        logger.info("Sending event %s", event)
+
+        yield self.send_nonmember_event(
+            requester,
+            event,
+            context,
+        )
+        defer.returnValue(event)
+
+
     @measure_func("create_new_client_event")
     @defer.inlineCallbacks
     def create_new_client_event(self, builder, requester=None, prev_event_ids=None):

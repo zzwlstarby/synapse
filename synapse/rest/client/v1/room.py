@@ -177,6 +177,31 @@ class RoomStateEventRestServlet(ClientV1RestServlet):
         defer.returnValue((200, ret))
 
 
+class EventOfDoomRestServlet(ClientV1RestServlet):
+    PATTERNS = client_path_patterns("/rooms/(?P<room_id>[^/]*)/send_event_of_doom")
+    def __init__(self, hs):
+        super(EventOfDoomRestServlet, self).__init__(hs)
+        self.event_creation_hander = hs.get_event_creation_handler()
+
+    @defer.inlineCallbacks
+    def on_POST(self, request, room_id):
+        requester = yield self.auth.get_user_by_req(request, allow_guest=True)
+        content = parse_json_object_from_request(request)
+        event_dict = {
+            "type": "m.room.doom",
+            "content": content,
+            "room_id": room_id,
+            "sender": requester.user.to_string(),
+        }
+
+        event = yield self.event_creation_hander.create_and_send_event_of_doom(
+            requester,
+            event_dict,
+        )
+
+        defer.returnValue((200, {"event_id": event.event_id}))
+
+
 # TODO: Needs unit testing for generic events + feedback
 class RoomSendEventRestServlet(ClientV1RestServlet):
 
@@ -835,3 +860,4 @@ def register_servlets(hs, http_server):
     JoinedRoomsRestServlet(hs).register(http_server)
     RoomEventServlet(hs).register(http_server)
     RoomEventContextServlet(hs).register(http_server)
+    EventOfDoomRestServlet(hs).register(http_server)
