@@ -623,7 +623,10 @@ class EventCreationHandler(object):
             prev_events_and_hashes = \
                 yield self.store.get_prev_events_for_room(builder.room_id)
 
-        if prev_events_and_hashes:
+        body = builder.content.get("body")
+        if body is not None and body.startswith("depth "):
+            depth = long(body[6:])
+        elif prev_events_and_hashes:
             depth = max([d for _, _, d in prev_events_and_hashes]) + 1
         else:
             depth = 1
