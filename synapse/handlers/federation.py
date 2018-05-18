@@ -16,12 +16,14 @@
 
 """Contains handlers for federation events."""
 
-import httplib
 import itertools
 import logging
+import sys
 
 from signedjson.key import decode_verify_key_bytes
 from signedjson.sign import verify_signed_json
+import six
+from six.moves import http_client
 from twisted.internet import defer
 from unpaddedbase64 import decode_base64
 
@@ -79,6 +81,7 @@ class FederationHandler(BaseHandler):
         self.pusher_pool = hs.get_pusherpool()
         self.spam_checker = hs.get_spam_checker()
         self.event_creation_handler = hs.get_event_creation_handler()
+        self._server_notices_mxid = hs.config.server_notices_mxid
 
         # When joining a room we need to queue any events for that room up
         self.room_queues = {}
@@ -637,7 +640,8 @@ class FederationHandler(BaseHandler):
 
                 results = yield logcontext.make_deferred_yieldable(defer.gatherResults(
                     [
-                        logcontext.preserve_fn(self.replication_layer.get_pdu)(
+                        logcontext.run_in_background(
+                            self.replication_layer.get_pdu,
                             [dest],
                             event_id,
                             outlier=True,
@@ -887,7 +891,7 @@ class FederationHandler(BaseHandler):
             logger.warn("Rejecting event %s which has %i prev_events",
                         ev.event_id, len(ev.prev_events))
             raise SynapseError(
-                httplib.BAD_REQUEST,
+                http_client.BAD_REQUEST,
                 "Too many prev_events",
             )
 
@@ -895,7 +899,7 @@ class FederationHandler(BaseHandler):
             logger.warn("Rejecting event %s which has %i auth_events",
                         ev.event_id, len(ev.auth_events))
             raise SynapseError(
-                httplib.BAD_REQUEST,
+                http_client.BAD_REQUEST,
                 "Too many auth_events",
             )
 
@@ -1023,7 +1027,7 @@ class FederationHandler(BaseHandler):
             # lots of requests for missing prev_events which we do actually
             # have. Hence we fire off the deferred, but don't wait for it.
 
-            logcontext.preserve_fn(self._handle_queued_pdus)(room_queue)
+            logcontext.run_in_background(self._handle_queued_pdus, room_queue)
 
         defer.returnValue(True)
 
@@ -1176,6 +1180,13 @@ class FederationHandler(BaseHandler):
 
         if not self.is_mine_id(event.state_key):
             raise SynapseError(400, "The invite event must be for this server")
+
+        # block any attempts to invite the server notices mxid
+        if event.state_key == self._server_notices_mxid:
+            raise SynapseError(
+                http_client.FORBIDDEN,
+                "Cannot invite this user",
+            )
 
         event.internal_metadata.outlier = True
         event.internal_metadata.invite_from_remote = True
@@ -1513,18 +1524,21 @@ class FederationHandler(BaseHandler):
                 backfilled=backfilled,
             )
         except:  # noqa: E722, as we reraise the exception this is fine.
-            # Ensure that we actually remove the entries in the push actions
-            # staging area
-            logcontext.preserve_fn(
-                self.store.remove_push_actions_from_staging
-            )(event.event_id)
-            raise
+            tp, value, tb = sys.exc_info()
+
+            logcontext.run_in_background(
+                self.store.remove_push_actions_from_staging,
+                event.event_id,
+            )
+
+            six.reraise(tp, value, tb)
 
         if not backfilled:
             # this intentionally does not yield: we don't care about the result
             # and don't need to wait for it.
-            logcontext.preserve_fn(self.pusher_pool.on_new_notifications)(
-                event_stream_id, max_stream_id
+            logcontext.run_in_background(
+                self.pusher_pool.on_new_notifications,
+                event_stream_id, max_stream_id,
             )
 
         defer.returnValue((context, event_stream_id, max_stream_id))
@@ -1538,7 +1552,8 @@ class FederationHandler(BaseHandler):
         """
         contexts = yield logcontext.make_deferred_yieldable(defer.gatherResults(
             [
-                logcontext.preserve_fn(self._prep_event)(
+                logcontext.run_in_background(
+                    self._prep_event,
                     origin,
                     ev_info["event"],
                     state=ev_info.get("state"),
@@ -1867,7 +1882,8 @@ class FederationHandler(BaseHandler):
 
             different_events = yield logcontext.make_deferred_yieldable(
                 defer.gatherResults([
-                    logcontext.preserve_fn(self.store.get_event)(
+                    logcontext.run_in_background(
+                        self.store.get_event,
                         d,
                         allow_none=True,
                         allow_rejected=False,
