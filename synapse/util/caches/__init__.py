@@ -20,8 +20,6 @@ import os
 from six.moves import intern
 import six
 
-import synapse.metrics
-
 CACHE_SIZE_FACTOR = float(os.environ.get("SYNAPSE_CACHE_FACTOR", 0.5))
 
 
@@ -33,8 +31,6 @@ def get_cache_factor_for(cache_name):
 
     return CACHE_SIZE_FACTOR
 
-
-metrics = synapse.metrics.get_metrics_for("synapse.util.caches")
 
 caches_by_name = {}
 collectors_by_name = {}
