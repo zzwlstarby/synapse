@@ -34,11 +34,6 @@ logger = logging.getLogger(__name__)
 
 MAX_STATE_DELTA_HOPS = 100
 
-# whether to bother caching parts of a state group (for example, if we only
-# need one type of state event, should we just look that up, or should we look
-# up the whole state group?)
-ENABLE_PARTIAL_STATE_GROUP_CACHING = True
-
 
 class _GetStateGroupDelta(namedtuple("_GetStateGroupDelta", ("prev_group", "delta_ids"))):
     """Return type of get_state_group_delta that implements __len__, which lets
@@ -564,25 +559,32 @@ class StateGroupWorkerStore(SQLBaseStore):
             # Okay, so we have some missing_types, lets fetch them.
             cache_seq_num = self._state_group_cache.sequence
 
-            if not ENABLE_PARTIAL_STATE_GROUP_CACHING:
-                types = None
-
+            # FIXME partial lookups are hackily disabled here to improve
+            # federation performance; see
+            # https://github.com/matrix-org/synapse/issues/3380. We should
+            # do something better.
             group_to_state_dict = yield self._get_state_groups_from_groups(
-                missing_groups, types
+                missing_groups, None
             )
 
             # Now we want to update the cache with all the things we fetched
             # from the database.
             for group, group_state_dict in iteritems(group_to_state_dict):
                 state_dict = results[group]
-                state_dict.update(group_state_dict)
+
+                if types:
+                    for k, v in iteritems(group_state_dict):
+                        (typ, _) = k
+                        if k in types or (typ, None) in types:
+                            state_dict[k] = v
+                else:
+                    state_dict.update(group_state_dict)
 
                 self._state_group_cache.update(
                     cache_seq_num,
                     key=group,
-                    value=state_dict,
-                    full=(types is None),
-                    known_absent=types,
+                    value=group_state_dict,
+                    full=True,
                 )
 
         defer.returnValue(results)
