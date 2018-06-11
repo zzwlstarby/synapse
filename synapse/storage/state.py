@@ -34,11 +34,6 @@ logger = logging.getLogger(__name__)
 
 MAX_STATE_DELTA_HOPS = 100
 
-# whether to bother caching parts of a state group (for example, if we only
-# need one type of state event, should we just look that up, or should we look
-# up the whole state group?)
-ENABLE_PARTIAL_STATE_GROUP_CACHING = True
-
 
 class _GetStateGroupDelta(namedtuple("_GetStateGroupDelta", ("prev_group", "delta_ids"))):
     """Return type of get_state_group_delta that implements __len__, which lets
