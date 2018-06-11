@@ -567,10 +567,7 @@ class StateGroupWorkerStore(SQLBaseStore):
             # from the database.
             for group, group_state_dict in iteritems(group_to_state_dict):
                 state_dict = results[group]
-
-                state_dict.update(
-                    iteritems(group_state_dict)
-                )
+                state_dict.update(group_state_dict)
 
                 self._state_group_cache.update(
                     cache_seq_num,
