@@ -284,6 +284,9 @@ class SQLBaseStore(object):
             end = time.time()
             duration = end - start
 
+            # todo: for consistency with the CPU stats, we should probably
+            # write this to the current log context, then copy it back to the
+            # parent in Logcontext.__exit__.
             if logging_context is not None:
                 logging_context.add_database_transaction(duration)
 
@@ -346,21 +349,19 @@ class SQLBaseStore(object):
         Returns:
             Deferred: The result of func
         """
-        current_context = LoggingContext.current_context()
+        parent_context = LoggingContext.current_context()
 
         start_time = time.time()
 
         def inner_func(conn, *args, **kwargs):
-            with LoggingContext("runWithConnection") as context:
+            with LoggingContext("runWithConnection", parent_context):
                 sched_duration_sec = time.time() - start_time
                 sql_scheduling_timer.observe(sched_duration_sec)
-                current_context.add_database_scheduled(sched_duration_sec)
+                parent_context.add_database_scheduled(sched_duration_sec)
 
                 if self.database_engine.is_connection_closed(conn):
                     logger.debug("Reconnecting closed database connection")
                     conn.reconnect()
-
-                current_context.copy_to(context)
 
                 return func(conn, *args, **kwargs)
 
