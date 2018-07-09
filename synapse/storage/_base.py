@@ -350,6 +350,11 @@ class SQLBaseStore(object):
             Deferred: The result of func
         """
         parent_context = LoggingContext.current_context()
+        if parent_context == LoggingContext.sentinel:
+            logger.warn(
+                "Running db txn from sentinel context: metrics will be lost",
+            )
+            parent_context = None
 
         start_time = time.time()
 
@@ -357,7 +362,8 @@ class SQLBaseStore(object):
             with LoggingContext("runWithConnection", parent_context):
                 sched_duration_sec = time.time() - start_time
                 sql_scheduling_timer.observe(sched_duration_sec)
-                parent_context.add_database_scheduled(sched_duration_sec)
+                if parent_context is not None:
+                    parent_context.add_database_scheduled(sched_duration_sec)
 
                 if self.database_engine.is_connection_closed(conn):
                     logger.debug("Reconnecting closed database connection")
