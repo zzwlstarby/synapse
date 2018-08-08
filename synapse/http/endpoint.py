@@ -123,35 +123,50 @@ def matrix_federation_endpoint(reactor, destination, ssl_context_factory=None,
         endpoint_kw_args.update(timeout=timeout)
 
     if ssl_context_factory is None:
-        transport_endpoint = HostnameEndpoint
+        transport_endpoint_fac = HostnameEndpoint
         default_port = 8008
     else:
-        def transport_endpoint(reactor, host, port, timeout):
+        def transport_endpoint_fac(reactor, host, port, timeout):
             return wrapClientTLS(
                 ssl_context_factory,
                 HostnameEndpoint(reactor, host, port, timeout=timeout))
         default_port = 8448
 
     if port is None:
-        return _WrappingEndpointFac(SRVClientEndpoint(
+        endpoint = SRVClientEndpoint(
             reactor, "matrix", domain, protocol="tcp",
-            default_port=default_port, endpoint=transport_endpoint,
-            endpoint_kw_args=endpoint_kw_args
-        ), reactor)
+            default_port=default_port, endpoint_factory=transport_endpoint_fac,
+            endpoint_factory_kw_args=endpoint_kw_args,
+        )
     else:
-        return _WrappingEndpointFac(transport_endpoint(
+        endpoint = transport_endpoint_fac(
             reactor, domain, port, **endpoint_kw_args
-        ), reactor)
+        )
+    return _WrappingEndpoint(endpoint, reactor)
 
 
-class _WrappingEndpointFac(object):
-    def __init__(self, endpoint_fac, reactor):
-        self.endpoint_fac = endpoint_fac
+class _WrappingEndpoint(object):
+    """
+    An Endpoint (technically a twisted.internet.interfaces.IStreamClientEndpoint) which
+    wraps another Endpoint such that the returned Connections are wrapped with
+    _WrappedConnection
+    """
+    def __init__(self, endpoint, reactor):
+        """
+
+        Args:
+            endpoint (twisted.internet.interfaces.IStreamClientEndpoint):
+                endpoint to be wrapped
+
+            reactor (twisted.internet.interfaces.IReactorTime):
+                twisted reactor.
+        """
+        self.endpoint = endpoint
         self.reactor = reactor
 
     @defer.inlineCallbacks
     def connect(self, protocolFactory):
-        conn = yield self.endpoint_fac.connect(protocolFactory)
+        conn = yield self.endpoint.connect(protocolFactory)
         conn = _WrappedConnection(conn, self.reactor)
         defer.returnValue(conn)
 
@@ -254,8 +269,24 @@ class SRVClientEndpoint(object):
     """
 
     def __init__(self, reactor, service, domain, protocol="tcp",
-                 default_port=None, endpoint=HostnameEndpoint,
-                 endpoint_kw_args={}):
+                 default_port=None, endpoint_factory=HostnameEndpoint,
+                 endpoint_factory_kw_args={}):
+        """
+
+        Args:
+            reactor: Twisted reactor
+            service (str): Service name for the SRV lookup
+            domain (str): domain for the SRV lookup
+            protocol (str): protocol for the SRV lookup
+            default_port (int|None): port to connect to if no SRV record is found.
+
+            endpoint_factory (Callable):
+                A function which will build an endpoint. Should take three arguments
+                (reactor, host (str), port (int)), as well as any arguments passed in
+                endpoint_factory_kw_args.
+
+            endpoint_factory_kw_args (dict): keyword args to pass to endpoint_factory
+        """
         self.reactor = reactor
         self.service_name = "_%s._%s.%s" % (service, protocol, domain)
 
@@ -270,8 +301,8 @@ class SRVClientEndpoint(object):
         else:
             self.default_server = None
 
-        self.endpoint = endpoint
-        self.endpoint_kw_args = endpoint_kw_args
+        self.endpoint_fac = endpoint_factory
+        self.endpoint_fac_kw_args = endpoint_factory_kw_args
 
         self.servers = None
         self.used_servers = None
@@ -330,8 +361,8 @@ class SRVClientEndpoint(object):
             yield self.fetch_servers()
         server = self.pick_server()
         logger.info("Connecting to %s:%s", server.host, server.port)
-        endpoint = self.endpoint(
-            self.reactor, server.host, server.port, **self.endpoint_kw_args
+        endpoint = self.endpoint_fac(
+            self.reactor, server.host, server.port, **self.endpoint_fac_kw_args
         )
         connection = yield endpoint.connect(protocolFactory)
         defer.returnValue(connection)
