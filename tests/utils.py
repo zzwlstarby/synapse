@@ -125,6 +125,7 @@ def setup_test_homeserver(name="test", datastore=None, config=None, reactor=None
             database_engine=db_engine,
             room_list_handler=object(),
             tls_server_context_factory=Mock(),
+            tls_client_options_factory=Mock(),
             reactor=reactor,
             **kargs
         )
@@ -145,6 +146,7 @@ def setup_test_homeserver(name="test", datastore=None, config=None, reactor=None
             database_engine=db_engine,
             room_list_handler=object(),
             tls_server_context_factory=Mock(),
+            tls_client_options_factory=Mock(),
             reactor=reactor,
             **kargs
         )
