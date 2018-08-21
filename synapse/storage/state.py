@@ -795,28 +795,23 @@ class StateGroupWorkerStore(EventsWorkerStore, SQLBaseStore):
         if types:
             types = frozenset(types)
         results = {}
-        missing_groups = []
-        if types is not None:
-            for group in set(groups):
+        incomplete_groups = []
+        for group in set(groups):
+            if types is not None:
                 state_dict_ids, got_all = self._get_some_state_from_cache(
                     cache, group, types, filtered_types
                 )
-                results[group] = state_dict_ids
-
-                if not got_all:
-                    missing_groups.append(group)
-        else:
-            for group in set(groups):
+            else:
                 state_dict_ids, got_all = self._get_all_state_from_cache(
                     cache, group
                 )
 
-                results[group] = state_dict_ids
+            results[group] = state_dict_ids
 
-                if not got_all:
-                    missing_groups.append(group)
+            if not got_all:
+                incomplete_groups.append(group)
 
-        if missing_groups:
+        if incomplete_groups:
             # Okay, so we have some missing_types, let's fetch them.
             cache_seq_num = cache.sequence
 
@@ -832,7 +827,8 @@ class StateGroupWorkerStore(EventsWorkerStore, SQLBaseStore):
                 types_to_fetch = types
 
             group_to_state_dict = yield self._get_state_groups_from_groups(
-                missing_groups, types_to_fetch, cache == self._state_group_members_cache,
+                incomplete_groups, types_to_fetch,
+                cache == self._state_group_members_cache,
             )
 
             for group, group_state_dict in iteritems(group_to_state_dict):
