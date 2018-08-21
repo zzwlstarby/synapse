@@ -37,6 +37,9 @@ logger = logging.getLogger(__name__)
 
 MAX_STATE_DELTA_HOPS = 100
 
+# this is a magic object we use in _get_some_state_from_cache
+sentinel = object()
+
 
 class _GetStateGroupDelta(namedtuple("_GetStateGroupDelta", ("prev_group", "delta_ids"))):
     """Return type of get_state_group_delta that implements __len__, which lets
@@ -605,10 +608,10 @@ class StateGroupWorkerStore(EventsWorkerStore, SQLBaseStore):
         Args:
             cache(DictionaryCache): the state group cache to use
             group(int): The state group to lookup
-            types(list[str, str|None]): List of 2-tuples of the form
+            types(Iterable[str, str|None]): List of 2-tuples of the form
                 (`type`, `state_key`), where a `state_key` of `None` matches all
                 state_keys for the `type`.
-            filtered_types(list[str]|None): Only apply filtering via `types` to this
+            filtered_types(Container[str]|None): Only apply filtering via `types` to this
                 list of event types.  Other types of events are returned unfiltered.
                 If None, `types` filtering is applied to all events.
 
@@ -617,13 +620,23 @@ class StateGroupWorkerStore(EventsWorkerStore, SQLBaseStore):
         requests state from the cache, if False we need to query the DB for the
         missing state.
         """
-        is_all, known_absent, state_dict_ids = cache.get(group)
+        is_complete_cache, cached_types, state_dict_ids = cache.get(group)
 
-        type_to_key = {}
+        # assume we got all of the results until proven otherwise
+        got_all = True
 
-        # tracks whether any of our requested types are missing from the cache
-        missing_types = False
+        if filtered_types is not None and not is_complete_cache:
+            # there may be event types which we haven't cached
+            got_all = False
 
+        # first, we build a map from event type to the set of state_keys we're interested
+        # in, which will allow us to iterate over the returned dict more efficiently.
+        #
+        # (Note that we can't just pull the relevant keys out of `state_dict_ids`, because
+        # `types` might include wildcards that will necessitate iterating over the whole
+        # of state_dict_ids)
+        #
+        type_to_key = {}    # type: dict[str, None|set[str]]
         for typ, state_key in types:
             key = (typ, state_key)
 
@@ -631,42 +644,51 @@ class StateGroupWorkerStore(EventsWorkerStore, SQLBaseStore):
                 state_key is None or
                 (filtered_types is not None and typ not in filtered_types)
             ):
+                # we want all events of this type.
                 type_to_key[typ] = None
+
                 # we mark the type as missing from the cache because
                 # when the cache was populated it might have been done with a
                 # restricted set of state_keys, so the wildcard will not work
                 # and the cache may be incomplete.
-                missing_types = True
+                if not is_complete_cache:
+                    got_all = False
+
             else:
-                if type_to_key.get(typ, object()) is not None:
+                # a specific (type, key) which we want
+                if type_to_key.get(typ, sentinel) is not None:
                     type_to_key.setdefault(typ, set()).add(state_key)
 
-                if key not in state_dict_ids and key not in known_absent:
-                    missing_types = True
+                if not is_complete_cache and key not in cached_types:
+                    got_all = False
 
-        sentinel = object()
-
+        # now, filter the cache entry by the types that we wanted
         def include(typ, state_key):
             valid_state_keys = type_to_key.get(typ, sentinel)
             if valid_state_keys is sentinel:
+                # this type was not requested in `types` with any state_key.
+                #
+                # We should return the entry anyway if filtered_types is set and doesn't
+                # exclude it.
                 return filtered_types is not None and typ not in filtered_types
+
             if valid_state_keys is None:
+                # we want all events of this type.
                 return True
+
             if state_key in valid_state_keys:
+                # we want exactly this (type, state_key).
                 return True
+
+            # we want events of this type, but not this state_key.
             return False
 
-        got_all = is_all
-        if not got_all:
-            # the cache is incomplete. We may still have got all the results we need, if
-            # we don't have any wildcards in the match list.
-            if not missing_types and filtered_types is None:
-                got_all = True
-
-        return {
+        state = {
             k: v for k, v in iteritems(state_dict_ids)
             if include(k[0], k[1])
-        }, got_all
+        }
+
+        return state, got_all
 
     def _get_all_state_from_cache(self, cache, group):
         """Checks if group is in cache. See `_get_state_for_groups`
