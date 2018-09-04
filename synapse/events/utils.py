@@ -212,7 +212,7 @@ def format_event_for_client_v1(d):
 
 def format_event_for_client_v2(d):
     drop_keys = (
-        "auth_events", "prev_events", "hashes", "signatures", "depth",
+        "hashes", "signatures", "depth",
         "origin", "prev_state",
     )
     for key in drop_keys:
