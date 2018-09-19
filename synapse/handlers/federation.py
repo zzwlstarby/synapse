@@ -332,9 +332,21 @@ class FederationHandler(BaseHandler):
                         )
 
                     room_version = yield self.store.get_room_version(room_id)
+
                     state_map = yield resolve_events_with_factory(
                         room_version, state_groups, {event_id: pdu}, fetch
                     )
+                    logger.info(
+                        "[%s %s] resolved state map: %r",
+                        room_id, event_id, state_map,
+                    )
+                    for k, v in six.iteritems(state_map):
+                        if not isinstance(v, str):
+                            logger.warn(
+                                "[%s %s] event id is not a string in resolved state map: "
+                                "%s->%s",
+                                room_id, event_id, k, v,
+                            )
 
                     state = (yield self.store.get_events(state_map.values())).values()
                     auth_chain = list(auth_chains)
