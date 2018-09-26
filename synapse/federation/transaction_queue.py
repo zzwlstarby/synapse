@@ -298,7 +298,6 @@ class TransactionQueue(object):
 
             self._attempt_new_transaction(destination)
 
-    @logcontext.preserve_fn  # the caller should not yield on this
     @defer.inlineCallbacks
     def send_presence(self, states):
         """Send the new presence states to the appropriate destinations.

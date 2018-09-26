@@ -38,7 +38,7 @@ from synapse.storage.presence import UserPresenceState
 from synapse.types import UserID, get_domain_from_id
 from synapse.util.async_helpers import Linearizer
 from synapse.util.caches.descriptors import cachedInlineCallbacks
-from synapse.util.logcontext import run_in_background
+from synapse.util.logcontext import preserve_fn, run_in_background
 from synapse.util.logutils import log_function
 from synapse.util.metrics import Measure
 from synapse.util.wheel_timer import WheelTimer
@@ -620,13 +620,14 @@ class PresenceHandler(object):
             users=[UserID.from_string(u) for u in users_to_states]
         )
 
+    @preserve_fn
     def _push_to_remotes(self, states):
         """Sends state updates to remote servers.
 
         Args:
             states (list(UserPresenceState))
         """
-        self.federation.send_presence(states)
+        return self.federation.send_presence(states)
 
     @defer.inlineCallbacks
     def incoming_presence(self, origin, content):
@@ -765,15 +766,23 @@ class PresenceHandler(object):
         # TODO: Only send to servers not already in the room.
         if self.is_mine(user):
             state = yield self.current_state_for_user(user.to_string())
-
-            self._push_to_remotes([state])
+            logger.debug(
+                "local user %s joined %s: sending updated presence %s",
+                str(user), room_id, state,
+            )
+            yield self.federation.send_presence([state])
         else:
             user_ids = yield self.store.get_users_in_room(room_id)
             user_ids = list(filter(self.is_mine_id, user_ids))
 
             states = yield self.current_state_for_users(user_ids)
 
-            self._push_to_remotes(list(states.values()))
+            logger.debug(
+                "remote user %s joined %s: sending current presence for local users %s",
+                str(user), room_id, states,
+            )
+
+            yield self.federation.send_presence(list(states.values()))
 
     @defer.inlineCallbacks
     def get_presence_list(self, observer_user, accepted=None):

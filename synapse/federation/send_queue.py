@@ -38,6 +38,7 @@ from sortedcontainers import SortedDict
 
 from synapse.metrics import LaterGauge
 from synapse.storage.presence import UserPresenceState
+from synapse.util.logcontext import run_in_background
 from synapse.util.metrics import Measure
 
 from .units import Edu
@@ -461,7 +462,9 @@ def process_rows_for_federation(transaction_queue, rows):
         parsed_row.add_to_buffer(buff)
 
     if buff.presence:
-        transaction_queue.send_presence(buff.presence)
+        run_in_background(
+            transaction_queue.send_presence, buff.presence,
+        )
 
     for destination, edu_map in iteritems(buff.keyed_edus):
         for key, edu in edu_map.items():
