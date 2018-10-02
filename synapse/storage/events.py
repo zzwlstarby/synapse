@@ -524,18 +524,24 @@ class EventsStore(EventFederationStore, EventsWorkerStore, BackgroundUpdateStore
         Assumes that we are only persisting events for one room at a time.
         """
         new_latest_event_ids = set(latest_event_ids)
+
         # First, add all the new events to the list
-        new_latest_event_ids.update(
+        new_events = [
             event.event_id for event, ctx in event_contexts
             if not event.internal_metadata.is_outlier() and not ctx.rejected
-        )
+        ]
+
+        new_latest_event_ids.update(new_events)
+
         # Now remove all events that are referenced by the to-be-added events
-        new_latest_event_ids.difference_update(
+        new_event_prevs = [
             e_id
             for event, ctx in event_contexts
             for e_id, _ in event.prev_events
             if not event.internal_metadata.is_outlier() and not ctx.rejected
-        )
+        ]
+
+        new_latest_event_ids.difference_update(new_event_prevs)
 
         # And finally remove any events that are referenced by previously added
         # events.
@@ -550,9 +556,18 @@ class EventsStore(EventFederationStore, EventsWorkerStore, BackgroundUpdateStore
             desc="_calculate_new_extremeties",
         )
 
-        new_latest_event_ids.difference_update(
-            row["prev_event_id"] for row in rows
-        )
+        already_reffed = list(row["prev_event_id"] for row in rows)
+
+        new_latest_event_ids.difference_update(already_reffed)
+
+        if not new_latest_event_ids:
+            logger.warn(
+                "Forward extremity list A+B-C-D is now empty in %s. "
+                "Old extremities (A): %s, new events (B): %s, "
+                "existing events which are reffed by new events (C): %s, "
+                "new events which are reffed by existing events (D): %s",
+                room_id, latest_event_ids, new_events, new_event_prevs, already_reffed,
+            )
 
         defer.returnValue(new_latest_event_ids)
 
