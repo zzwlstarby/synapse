@@ -11,3 +11,8 @@ jobs:
           destination: logs
       - store_test_results:
           path: logs
+workflows:
+  version: 2
+  build:
+    jobs:
+      - sytestpy2
