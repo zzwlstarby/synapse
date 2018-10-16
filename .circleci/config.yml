@@ -1,16 +1,12 @@
 version: 2
 jobs:
   sytestpy2:
-    machine: true
+    docker:
+      image: richvdh/sytest-synapsepy2:20181016_00
     steps:
       - checkout
-      - run: docker pull richvdh/sytest-synapsepy2:20181016_00
-      - run: docker run --rm -it -v $(pwd)\:/src -v $(pwd)/logs\:/logs richvdh/sytest-synapsepy2:20181016_00
-      - store_artifacts:
-          path: ~/project/logs
-          destination: logs
       - store_test_results:
-          path: logs
+          path: ~/project/logs
 workflows:
   version: 2
   build:
