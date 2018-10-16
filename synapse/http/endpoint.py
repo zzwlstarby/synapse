@@ -185,6 +185,10 @@ class _WrappedConnection(object):
         # triggered early. Paranoia ftw.
         # TODO: Cancel the previous callLater rather than comparing time.time()?
         if time.time() - self.last_request >= 2.5 * 60:
+            logger.info(
+                "Aborting connection %s due to inactivity",
+                self.transport.getPeer(),
+            )
             self.abort()
             # Abort the underlying TLS connection. The abort() method calls
             # loseConnection() on the TLS connection which tries to
