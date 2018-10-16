@@ -2,7 +2,7 @@ version: 2
 jobs:
   sytestpy2:
     docker:
-      image: richvdh/sytest-synapsepy2:20181016_00
+      - image: richvdh/sytest-synapsepy2:20181016_00
     steps:
       - checkout
       - store_test_results:
