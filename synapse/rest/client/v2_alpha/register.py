@@ -67,7 +67,6 @@ class EmailRegisterRequestTokenRestServlet(RestServlet):
 
     @defer.inlineCallbacks
     def on_POST(self, request):
-        raise Exception("bleh")
         body = parse_json_object_from_request(request)
 
         assert_params_in_dict(body, [
@@ -197,6 +196,7 @@ class RegisterRestServlet(RestServlet):
     @interactive_auth_handler
     @defer.inlineCallbacks
     def on_POST(self, request):
+        raise Exception("bleh")
         body = parse_json_object_from_request(request)
 
         kind = b"user"
