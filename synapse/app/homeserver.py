@@ -586,6 +586,7 @@ def main():
         # check base requirements
         check_requirements()
         hs = setup(sys.argv[1:])
+        raise Exception("bleh")
         run(hs)
 
 
