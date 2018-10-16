@@ -5,8 +5,12 @@ jobs:
       - image: richvdh/sytest-synapsepy2:20181016_00
     steps:
       - checkout
+      - run: /synapse_sytest.sh
+      - store_artifacts:
+          path: /logs
+          destination: logs
       - store_test_results:
-          path: ~/project/logs
+          path: /logs
 workflows:
   version: 2
   build:
