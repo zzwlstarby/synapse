@@ -4,7 +4,8 @@ jobs:
     docker:
       - image: richvdh/sytest-synapsepy2:20181016_00
     steps:
-      - checkout
+      - checkout:
+          path: /src
       - run: /synapse_sytest.sh
       - store_artifacts:
           path: /logs
