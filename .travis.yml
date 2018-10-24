@@ -28,5 +28,5 @@ install:
   - pip install tox
 
 script:
-  - tox -e $TOX_ENV
-  - find $XDG_CACHE_HOME/pip -type -f -print0 | xargs -0r ls -l 
+  - tox -ve $TOX_ENV
+  - find $XDG_CACHE_HOME/pip -type f -print0 | xargs -0r ls -l 
