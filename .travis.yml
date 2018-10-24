@@ -2,7 +2,7 @@ sudo: false
 language: python
 
 # tell travis to cache ~/.cache/pip
-cache: pip
+# cache: pip
 
 # don't clone the whole repo history, one commit will do
 git:
@@ -14,9 +14,6 @@ git:
 #    - master
 #    - develop
 #    - /^release-v.*/
-
-# tell travis to cache ~/.cache/pip
-# cache: pip
 
 matrix:
   fast_finish: true
