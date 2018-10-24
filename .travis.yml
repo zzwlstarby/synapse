@@ -28,4 +28,5 @@ install:
   - pip install tox
 
 script:
+  - find $HOME/.cache/pip
   - tox -ve $TOX_ENV | gawk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }'
