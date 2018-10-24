@@ -35,4 +35,4 @@ before_cache:
   # clean out old http files from the cache (there's no reason to believe they
   # will be quicker to download from S3 than from pypi, so there's not much
   # point caching them.)
-  - rm -r $HOME/.cache/pip/http
+  - rm -vr $HOME/.cache/pip/http
