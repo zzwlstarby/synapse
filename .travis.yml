@@ -16,7 +16,7 @@ git:
 #    - /^release-v.*/
 
 # tell travis to cache ~/.cache/pip
-cache: pip
+# cache: pip
 
 matrix:
   fast_finish: true
