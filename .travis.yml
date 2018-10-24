@@ -22,47 +22,10 @@ matrix:
   fast_finish: true
   include:
   - python: 2.7
-    env: TOX_ENV=packaging
-
-  - python: 3.6
-    env: TOX_ENV=pep8
-
-  - python: 2.7
     env: TOX_ENV=py27
-
-  - python: 2.7
-    env: TOX_ENV=py27-old
-
-  - python: 2.7
-    env: TOX_ENV=py27-postgres TRIAL_FLAGS="-j 4"
-    services:
-      - postgresql
-
-  - python: 3.5
-    env: TOX_ENV=py35
-
-  - python: 3.6
-    env: TOX_ENV=py36
-
-  - python: 3.6
-    env: TOX_ENV=py36-postgres TRIAL_FLAGS="-j 4"
-    services:
-      - postgresql
-
-  - python: 3.6
-    env: TOX_ENV=check_isort
-
-  - # we only need to check for the newsfragment if it's a PR build
-    if: type = pull_request
-    python: 3.6
-    env: TOX_ENV=check-newsfragment
-    script:
-      - git remote set-branches --add origin develop
-      - git fetch origin develop
-      - tox -e $TOX_ENV
-
+    
 install:
   - pip install tox
 
 script:
-  - tox -e $TOX_ENV | gawk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }'
+  - tox -ve $TOX_ENV | gawk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }'
