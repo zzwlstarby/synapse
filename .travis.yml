@@ -9,11 +9,14 @@ git:
   depth: 1
 
 # only build branches we care about (PRs are built seperately)
-branches:
-  only:
-    - master
-    - develop
-    - /^release-v/
+#branches:
+#  only:
+#    - master
+#    - develop
+#    - /^release-v.*/
+
+# tell travis to cache ~/.cache/pip
+cache: pip
 
 matrix:
   fast_finish: true
