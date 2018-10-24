@@ -13,11 +13,11 @@ git:
 #    - /^release-v.*/
 
 env:
-  - XDG_CACHE_DIR=/cache
+  - XDG_CACHE_DIR=$HOME/cache
 
 cache:
   directories:
-    - /cache
+    - $HOME/cache
 
 matrix:
   fast_finish: true
@@ -29,7 +29,7 @@ install:
   - pip install tox
 
 script:
-  - find $HOME/.cache/pip
+  - find $HOME/cache/pip
   - tox -ve $TOX_ENV | gawk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }'
 
   # clean out old http files from the cache (there's no reason to believe they
@@ -38,5 +38,5 @@ script:
   #
   # (this doesn't appear to work when placed in `before_cache`, despite that
   # being `before_cache`'s stated purpose :/
-  - rm -vr $HOME/.cache/pip/http
-  - find $HOME/.cache/pip
+  - rm -vr $XDG_CACHE_DIR/pip/http
+  - find $HOME/cache/pip
