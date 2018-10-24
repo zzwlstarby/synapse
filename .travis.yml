@@ -29,8 +29,9 @@ install:
   - pip install tox
 
 script:
+  - mkdir -p $XDG_CACHE_DIR
   - find $HOME/cache/pip
-  - tox -ve $TOX_ENV | gawk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }'
+  - tox -vve $TOX_ENV | gawk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }'
 
   # clean out old http files from the cache (there's no reason to believe they
   # will be quicker to download from S3 than from pypi, so there's not much
