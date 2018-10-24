@@ -12,9 +12,6 @@ git:
 #    - develop
 #    - /^release-v.*/
 
-env:
-  - XDG_CACHE_DIR=$HOME/cache
-
 cache:
   directories:
     - $HOME/cache
@@ -23,7 +20,10 @@ matrix:
   fast_finish: true
   include:
   - python: 2.7
-    env: TOX_ENV=py27
+    env:
+      - TOX_ENV=py27
+      - XDG_CACHE_DIR=$HOME/cache
+
     
 install:
   - pip install tox
