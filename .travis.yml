@@ -20,7 +20,7 @@ cache:
     # every build, which is time-consuming. In any case, it's not obvious that
     # downloading the cache from S3 would be much faster than downloading the
     # originals from pypi.
-    - $HOME/cache/pip/wheels
+    - $HOME/.cache/pip/wheels
 
 matrix:
   fast_finish: true
@@ -28,12 +28,11 @@ matrix:
   - python: 2.7
     env:
       - TOX_ENV=py27
-      - XDG_CACHE_HOME=$HOME/cache
    
 install:
   - pip install tox
 
 script:
-  - find $XDG_CACHE_HOME/pip -type f -print0 | xargs -0r ls -l 
+  - find $HOME/.cache/pip -type f -print0 | xargs -0r ls -l 
   - tox -vve $TOX_ENV
-  - find $XDG_CACHE_HOME/pip -type f -print0 | xargs -0r ls -l 
+  - find $HOME/.cache/pip -type f -print0 | xargs -0r ls -l 
