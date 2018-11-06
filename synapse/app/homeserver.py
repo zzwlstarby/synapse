@@ -571,6 +571,7 @@ def run(hs):
     import tracemalloc
 
     snapshots = []
+    snapshots.append(tracemalloc.take_snapshot())
 
     def collect_stats():
         snapshots.append(tracemalloc.take_snapshot())
