@@ -406,6 +406,13 @@ class SynapseService(service.Service):
 
 
 def run(hs):
+
+    import tracemalloc
+    import gc
+
+    snapshots = []
+    snapshots.append(tracemalloc.take_snapshot())
+
     PROFILE_SYNAPSE = False
     if PROFILE_SYNAPSE:
         def profile(func):
@@ -568,23 +575,16 @@ def run(hs):
     if hs.config.daemonize and hs.config.print_pidfile:
         print(hs.config.pid_file)
 
-    import tracemalloc
-    import gc
-
-    snapshots = []
-    snapshots.append(tracemalloc.take_snapshot())
 
     def collect_stats():
         gc.collect()
-        snapshots.append(tracemalloc.take_snapshot())
-        if len(snapshots) > 1:
-            stats = snapshots[-1].compare_to(snapshots[-2], 'lineno')
+        new = tracemalloc.take_snapshot()
+        stats = new.compare_to(snapshots[0], 'lineno')
 
-            for stat in stats[:10]:
-                print("{} new KiB {} total KiB {} new {} total memory blocks: ".format(stat.size_diff/1024, stat.size / 1024, stat.count_diff ,stat.count))
-                for line in stat.traceback.format():
-                    print(line)
-            snapshots.pop(-2)
+        for stat in stats[:10]:
+            print("{} new KiB {} total KiB {} new {} total memory blocks: ".format(stat.size_diff/1024, stat.size / 1024, stat.count_diff ,stat.count))
+            for line in stat.traceback.format():
+                print(line)
 
     clock.looping_call(collect_stats, 60*1000)
 
