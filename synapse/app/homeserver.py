@@ -568,9 +568,11 @@ def run(hs):
     if hs.config.daemonize and hs.config.print_pidfile:
         print(hs.config.pid_file)
 
+    import tracemalloc
+
     snapshots = []
 
-    def collect_stats(self):
+    def collect_stats():
         snapshots.append(tracemalloc.take_snapshot())
         if len(self.snapshots) > 1:
             stats = snapshots[-1].filter_traces(filters).compare_to(snapshots[-2], 'filename')
