@@ -568,6 +568,21 @@ def run(hs):
     if hs.config.daemonize and hs.config.print_pidfile:
         print(hs.config.pid_file)
 
+    snapshots = []
+
+    def collect_stats(self):
+        snapshots.append(tracemalloc.take_snapshot())
+        if len(self.snapshots) > 1:
+            stats = snapshots[-1].filter_traces(filters).compare_to(snapshots[-2], 'filename')
+
+            for stat in stats[:10]:
+                print("{} new KiB {} total KiB {} new {} total memory blocks: ".format(stat.size_diff/1024, stat.size / 1024, stat.count_diff ,stat.count))
+                for line in stat.traceback.format():
+                    print(line)
+            snapshots.pop(-2)
+
+    clock.looping_call(collect_stats, 10)
+
     _base.start_reactor(
         "synapse-homeserver",
         hs.config.soft_file_limit,
@@ -587,12 +602,7 @@ def main():
         run(hs)
 
     import tracemalloc
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
 
-    print("[ Top 50 ]")
-    for stat in top_stats[:50]:
-        print(stat)
 
 
 if __name__ == '__main__':
