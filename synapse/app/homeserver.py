@@ -576,7 +576,7 @@ def run(hs):
     def collect_stats():
         snapshots.append(tracemalloc.take_snapshot())
         if len(snapshots) > 1:
-            stats = snapshots[-1].compare_to(snapshots[-2], 'filename')
+            stats = snapshots[-1].compare_to(snapshots[-2], 'lineno')
 
             for stat in stats[:10]:
                 print("{} new KiB {} total KiB {} new {} total memory blocks: ".format(stat.size_diff/1024, stat.size / 1024, stat.count_diff ,stat.count))
