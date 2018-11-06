@@ -584,7 +584,7 @@ def run(hs):
                     print(line)
             snapshots.pop(-2)
 
-    clock.looping_call(collect_stats, 60)
+    clock.looping_call(collect_stats, 60*1000)
 
     _base.start_reactor(
         "synapse-homeserver",
@@ -603,10 +603,6 @@ def main():
         check_requirements()
         hs = setup(sys.argv[1:])
         run(hs)
-
-    import tracemalloc
-
-
 
 if __name__ == '__main__':
     main()
