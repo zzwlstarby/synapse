@@ -584,7 +584,7 @@ def run(hs):
                     print(line)
             snapshots.pop(-2)
 
-    clock.looping_call(collect_stats, 10)
+    clock.looping_call(collect_stats, 60)
 
     _base.start_reactor(
         "synapse-homeserver",
