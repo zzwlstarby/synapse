@@ -575,7 +575,7 @@ def run(hs):
 
     def collect_stats():
         snapshots.append(tracemalloc.take_snapshot())
-        if len(self.snapshots) > 1:
+        if len(snapshots) > 1:
             stats = snapshots[-1].compare_to(snapshots[-2], 'filename')
 
             for stat in stats[:10]:
