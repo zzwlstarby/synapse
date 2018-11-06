@@ -569,11 +569,13 @@ def run(hs):
         print(hs.config.pid_file)
 
     import tracemalloc
+    import gc
 
     snapshots = []
     snapshots.append(tracemalloc.take_snapshot())
 
     def collect_stats():
+        gc.collect()
         snapshots.append(tracemalloc.take_snapshot())
         if len(snapshots) > 1:
             stats = snapshots[-1].compare_to(snapshots[-2], 'lineno')
