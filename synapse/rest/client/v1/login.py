@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from six.moves import urllib
 
 from canonicaljson import json
-from saml2 import BINDING_HTTP_POST, config
+from saml2 import BINDING_HTTP_POST
 from saml2.client import Saml2Client
 
 from twisted.internet import defer
@@ -335,17 +335,14 @@ class SAML2RestServlet(ClientV1RestServlet):
 
     def __init__(self, hs):
         super(SAML2RestServlet, self).__init__(hs)
-        self.sp_config = hs.config.saml2_config_path
-        self.handlers = hs.get_handlers()
+
+        self.saml_client = Saml2Client(hs.config.saml2_sp_config)
 
     @defer.inlineCallbacks
     def on_POST(self, request):
         saml2_auth = None
         try:
-            conf = config.SPConfig()
-            conf.load_file(self.sp_config)
-            SP = Saml2Client(conf)
-            saml2_auth = SP.parse_authn_request_response(
+            saml2_auth = self.saml_client.parse_authn_request_response(
                 request.args['SAMLResponse'][0], BINDING_HTTP_POST)
         except Exception as e:        # Not authenticated
             logger.exception(e)
