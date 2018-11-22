@@ -81,7 +81,6 @@ def login_id_thirdparty_from_phone(identifier):
 
 class LoginRestServlet(ClientV1RestServlet):
     PATTERNS = client_path_patterns("/login$")
-    SAML2_TYPE = "m.login.saml2"
     CAS_TYPE = "m.login.cas"
     SSO_TYPE = "m.login.sso"
     TOKEN_TYPE = "m.login.token"
@@ -89,8 +88,6 @@ class LoginRestServlet(ClientV1RestServlet):
 
     def __init__(self, hs):
         super(LoginRestServlet, self).__init__(hs)
-        self.idp_redirect_url = hs.config.saml2_idp_redirect_url
-        self.saml2_enabled = hs.config.saml2_enabled
         self.jwt_enabled = hs.config.jwt_enabled
         self.jwt_secret = hs.config.jwt_secret
         self.jwt_algorithm = hs.config.jwt_algorithm
@@ -103,8 +100,6 @@ class LoginRestServlet(ClientV1RestServlet):
         flows = []
         if self.jwt_enabled:
             flows.append({"type": LoginRestServlet.JWT_TYPE})
-        if self.saml2_enabled:
-            flows.append({"type": LoginRestServlet.SAML2_TYPE})
         if self.cas_enabled:
             flows.append({"type": LoginRestServlet.SSO_TYPE})
 
@@ -134,18 +129,8 @@ class LoginRestServlet(ClientV1RestServlet):
     def on_POST(self, request):
         login_submission = parse_json_object_from_request(request)
         try:
-            if self.saml2_enabled and (login_submission["type"] ==
-                                       LoginRestServlet.SAML2_TYPE):
-                relay_state = ""
-                if "relay_state" in login_submission:
-                    relay_state = "&RelayState=" + urllib.parse.quote(
-                                  login_submission["relay_state"])
-                result = {
-                    "uri": "%s%s" % (self.idp_redirect_url, relay_state)
-                }
-                defer.returnValue((200, result))
-            elif self.jwt_enabled and (login_submission["type"] ==
-                                       LoginRestServlet.JWT_TYPE):
+            if self.jwt_enabled and (login_submission["type"] ==
+                                     LoginRestServlet.JWT_TYPE):
                 result = yield self.do_jwt_login(login_submission)
                 defer.returnValue(result)
             elif login_submission["type"] == LoginRestServlet.TOKEN_TYPE:
