@@ -47,7 +47,7 @@ class SAML2Config(Config):
             )
 
         metadata_url = public_baseurl + "_matrix/saml2/metadata.xml"
-        response_url = public_baseurl + "_matrix/client/r0/login/saml2"
+        response_url = public_baseurl + "_matrix/saml2/authn_response"
         return {
             "entityid": metadata_url,
 

@@ -18,16 +18,16 @@ import xml.etree.ElementTree as ET
 
 from six.moves import urllib
 
-from canonicaljson import json
-from saml2 import BINDING_HTTP_POST
-from saml2.client import Saml2Client
-
 from twisted.internet import defer
 from twisted.web.client import PartialDownloadError
 
 from synapse.api.errors import Codes, LoginError, SynapseError
 from synapse.http.server import finish_request
-from synapse.http.servlet import RestServlet, parse_json_object_from_request
+from synapse.http.servlet import (
+    RestServlet,
+    parse_json_object_from_request,
+    parse_string,
+)
 from synapse.types import UserID
 from synapse.util.msisdn import phone_number_to_msisdn
 
@@ -330,47 +330,6 @@ class LoginRestServlet(ClientV1RestServlet):
         )
 
 
-class SAML2RestServlet(ClientV1RestServlet):
-    PATTERNS = client_path_patterns("/login/saml2", releases=())
-
-    def __init__(self, hs):
-        super(SAML2RestServlet, self).__init__(hs)
-
-        self.saml_client = Saml2Client(hs.config.saml2_sp_config)
-
-    @defer.inlineCallbacks
-    def on_POST(self, request):
-        saml2_auth = None
-        try:
-            saml2_auth = self.saml_client.parse_authn_request_response(
-                request.args['SAMLResponse'][0], BINDING_HTTP_POST)
-        except Exception as e:        # Not authenticated
-            logger.exception(e)
-        if saml2_auth and saml2_auth.status_ok() and not saml2_auth.not_signed:
-            username = saml2_auth.name_id.text
-            handler = self.handlers.registration_handler
-            (user_id, token) = yield handler.register_saml2(username)
-            # Forward to the RelayState callback along with ava
-            if 'RelayState' in request.args:
-                request.redirect(urllib.parse.unquote(
-                                 request.args['RelayState'][0]) +
-                                 '?status=authenticated&access_token=' +
-                                 token + '&user_id=' + user_id + '&ava=' +
-                                 urllib.quote(json.dumps(saml2_auth.ava)))
-                finish_request(request)
-                defer.returnValue(None)
-            defer.returnValue((200, {"status": "authenticated",
-                                     "user_id": user_id, "token": token,
-                                     "ava": saml2_auth.ava}))
-        elif 'RelayState' in request.args:
-            request.redirect(urllib.parse.unquote(
-                             request.args['RelayState'][0]) +
-                             '?status=not_authenticated')
-            finish_request(request)
-            defer.returnValue(None)
-        defer.returnValue((200, {"status": "not_authenticated"}))
-
-
 class CasRedirectServlet(RestServlet):
     PATTERNS = client_path_patterns("/login/(cas|sso)/redirect")
 
@@ -403,17 +362,15 @@ class CasTicketServlet(ClientV1RestServlet):
         self.cas_server_url = hs.config.cas_server_url
         self.cas_service_url = hs.config.cas_service_url
         self.cas_required_attributes = hs.config.cas_required_attributes
-        self.auth_handler = hs.get_auth_handler()
-        self.handlers = hs.get_handlers()
-        self.macaroon_gen = hs.get_macaroon_generator()
+        self._sso_auth_handler = SSOAuthHandler(hs)
 
     @defer.inlineCallbacks
     def on_GET(self, request):
-        client_redirect_url = request.args[b"redirectUrl"][0]
+        client_redirect_url = parse_string(request, "redirectUrl", required=True)
         http_client = self.hs.get_simple_http_client()
         uri = self.cas_server_url + "/proxyValidate"
         args = {
-            "ticket": request.args[b"ticket"][0].decode('ascii'),
+            "ticket": parse_string(request, "ticket", required=True),
             "service": self.cas_service_url
         }
         try:
@@ -425,7 +382,6 @@ class CasTicketServlet(ClientV1RestServlet):
         result = yield self.handle_cas_response(request, body, client_redirect_url)
         defer.returnValue(result)
 
-    @defer.inlineCallbacks
     def handle_cas_response(self, request, cas_response_body, client_redirect_url):
         user, attributes = self.parse_cas_response(cas_response_body)
 
@@ -441,28 +397,9 @@ class CasTicketServlet(ClientV1RestServlet):
                 if required_value != actual_value:
                     raise LoginError(401, "Unauthorized", errcode=Codes.UNAUTHORIZED)
 
-        user_id = UserID(user, self.hs.hostname).to_string()
-        auth_handler = self.auth_handler
-        registered_user_id = yield auth_handler.check_user_exists(user_id)
-        if not registered_user_id:
-            registered_user_id, _ = (
-                yield self.handlers.registration_handler.register(localpart=user)
-            )
-
-        login_token = self.macaroon_gen.generate_short_term_login_token(
-            registered_user_id
+        return self._sso_auth_handler.on_successful_auth(
+            user, request, client_redirect_url,
         )
-        redirect_url = self.add_login_token_to_redirect_url(client_redirect_url,
-                                                            login_token)
-        request.redirect(redirect_url)
-        finish_request(request)
-
-    def add_login_token_to_redirect_url(self, url, token):
-        url_parts = list(urllib.parse.urlparse(url))
-        query = dict(urllib.parse.parse_qsl(url_parts[4]))
-        query.update({"loginToken": token})
-        url_parts[4] = urllib.parse.urlencode(query).encode('ascii')
-        return urllib.parse.urlunparse(url_parts)
 
     def parse_cas_response(self, cas_response_body):
         user = None
@@ -497,10 +434,61 @@ class CasTicketServlet(ClientV1RestServlet):
         return user, attributes
 
 
+class SSOAuthHandler(object):
+    """
+    Utility class for Resources and Servlets which handle the response from a SSO
+    service
+
+    Args:
+        hs (synapse.server.HomeServer)
+    """
+    def __init__(self, hs):
+        self._hostname = hs.hostname
+        self._auth_handler = hs.get_auth_handler()
+        self._registration_handler = hs.get_handlers().registration_handler
+        self._macaroon_gen = hs.get_macaroon_generator()
+
+    @defer.inlineCallbacks
+    def on_successful_auth(self, local_user_part, request, client_redirect_url):
+        """Called once the user has successfully authenticated with the SSO
+
+        Args:
+            local_user_part (unicode|bytes): the localpart of the userid (nb
+                must have been mapped into a valid mxid localpart already)
+
+            request (SynapseRequest): the incoming request from the browser. We'll
+                respond to it with a redirect.
+
+            client_redirect_url (unicode): the redirect_url the client gave us when
+                it first started the process.
+        """
+
+        user_id = UserID(local_user_part, self._hostname).to_string()
+        registered_user_id = yield self._auth_handler.check_user_exists(user_id)
+        if not registered_user_id:
+            registered_user_id, _ = (
+                yield self._registration_handler.register(localpart=local_user_part)
+            )
+
+        login_token = self._macaroon_gen.generate_short_term_login_token(
+            registered_user_id
+        )
+        redirect_url = self._add_login_token_to_redirect_url(
+            client_redirect_url, login_token
+        )
+        request.redirect(redirect_url)
+        finish_request(request)
+
+    def _add_login_token_to_redirect_url(self, url, token):
+        url_parts = list(urllib.parse.urlparse(url))
+        query = dict(urllib.parse.parse_qsl(url_parts[4]))
+        query.update({"loginToken": token})
+        url_parts[4] = urllib.parse.urlencode(query)
+        return urllib.parse.urlunparse(url_parts)
+
+
 def register_servlets(hs, http_server):
     LoginRestServlet(hs).register(http_server)
-    if hs.config.saml2_enabled:
-        SAML2RestServlet(hs).register(http_server)
     if hs.config.cas_enabled:
         CasRedirectServlet(hs).register(http_server)
         CasTicketServlet(hs).register(http_server)

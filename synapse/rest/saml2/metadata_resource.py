@@ -22,8 +22,10 @@ from twisted.web.resource import Resource
 class SAML2MetadataResource(Resource):
     """A Twisted web resource which renders the SAML metadata"""
 
+    isLeaf = 1
+
     def __init__(self, hs):
-        super(SAML2MetadataResource, self).__init__()
+        Resource.__init__(self)
         self.sp_config = hs.config.saml2_sp_config
 
     def render_GET(self, request):

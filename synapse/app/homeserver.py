@@ -198,8 +198,8 @@ class SynapseHomeServer(HomeServer):
             })
 
             if self.get_config().saml2_enabled:
-                from synapse.rest.saml2.metadata_resource import SAML2MetadataResource
-                resources["/_matrix/saml2/sp.xml"] = SAML2MetadataResource(self)
+                from synapse.rest.saml2 import SAML2Resource
+                resources["/_matrix/saml2"] = SAML2Resource(self)
 
         if name == "consent":
             from synapse.rest.consent.consent_resource import ConsentResource
