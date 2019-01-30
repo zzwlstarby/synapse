@@ -9,7 +9,7 @@ To use it, first install prometheus by following the instructions at
 
 Add a new job to the main prometheus.conf file:
 
-```json
+```yaml
   job: {
     name: "synapse"
 
