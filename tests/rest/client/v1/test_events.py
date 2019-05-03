@@ -17,7 +17,8 @@
 
 from mock import Mock, NonCallableMock
 
-from synapse.rest.client.v1 import admin, events, login, room
+import synapse.rest.admin
+from synapse.rest.client.v1 import events, login, room
 
 from tests import unittest
 
@@ -28,7 +29,7 @@ class EventStreamPermissionsTestCase(unittest.HomeserverTestCase):
     servlets = [
         events.register_servlets,
         room.register_servlets,
-        admin.register_servlets,
+        synapse.rest.admin.register_servlets,
         login.register_servlets,
     ]
 
@@ -40,10 +41,10 @@ class EventStreamPermissionsTestCase(unittest.HomeserverTestCase):
         config.auto_join_rooms = []
 
         hs = self.setup_test_homeserver(
-            config=config, ratelimiter=NonCallableMock(spec_set=["send_message"])
+            config=config, ratelimiter=NonCallableMock(spec_set=["can_do_action"])
         )
         self.ratelimiter = hs.get_ratelimiter()
-        self.ratelimiter.send_message.return_value = (True, 0)
+        self.ratelimiter.can_do_action.return_value = (True, 0)
 
         hs.get_handlers().federation_handler = Mock()
 

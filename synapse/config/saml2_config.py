@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2018 New Vector Ltd.
+# Copyright 2018 New Vector Ltd
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ class SAML2Config(Config):
         }
 
     def default_config(self, config_dir_path, server_name, **kwargs):
-        return """
+        return """\
         # Enable SAML2 for registration and login. Uses pysaml2.
         #
         # `sp_config` is the configuration for the pysaml2 Service Provider.

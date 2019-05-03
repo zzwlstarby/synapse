@@ -22,8 +22,9 @@ from six.moves.urllib import parse as urlparse
 
 from twisted.internet import defer
 
+import synapse.rest.admin
 from synapse.api.constants import Membership
-from synapse.rest.client.v1 import admin, login, room
+from synapse.rest.client.v1 import login, room
 
 from tests import unittest
 
@@ -41,10 +42,10 @@ class RoomBase(unittest.HomeserverTestCase):
             "red",
             http_client=None,
             federation_client=Mock(),
-            ratelimiter=NonCallableMock(spec_set=["send_message"]),
+            ratelimiter=NonCallableMock(spec_set=["can_do_action"]),
         )
         self.ratelimiter = self.hs.get_ratelimiter()
-        self.ratelimiter.send_message.return_value = (True, 0)
+        self.ratelimiter.can_do_action.return_value = (True, 0)
 
         self.hs.get_federation_handler = Mock(return_value=Mock())
 
@@ -96,7 +97,7 @@ class RoomPermissionsTestCase(RoomBase):
         # auth as user_id now
         self.helper.auth_user_id = self.user_id
 
-    def test_send_message(self):
+    def test_can_do_action(self):
         msg_content = b'{"msgtype":"m.text","body":"hello"}'
 
         seq = iter(range(100))
@@ -803,7 +804,7 @@ class RoomMessageListTestCase(RoomBase):
 
 class RoomSearchTestCase(unittest.HomeserverTestCase):
     servlets = [
-        admin.register_servlets,
+        synapse.rest.admin.register_servlets,
         room.register_servlets,
         login.register_servlets,
     ]

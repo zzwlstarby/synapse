@@ -68,8 +68,12 @@ class MatrixFederationAgent(object):
             TLS policy to use for fetching .well-known files. None to use a default
             (browser-like) implementation.
 
-        srv_resolver (SrvResolver|None):
+        _srv_resolver (SrvResolver|None):
             SRVResolver impl to use for looking up SRV records. None to use a default
+            implementation.
+
+        _well_known_cache (TTLCache|None):
+            TTLCache impl for storing cached well-known lookups. None to use a default
             implementation.
     """
 
@@ -145,7 +149,7 @@ class MatrixFederationAgent(object):
             tls_options = None
         else:
             tls_options = self._tls_client_options_factory.get_options(
-                res.tls_server_name.decode("ascii")
+                res.tls_server_name.decode("ascii"),
             )
 
         # make sure that the Host header is set correctly

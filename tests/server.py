@@ -119,14 +119,7 @@ class FakeSite:
 
     server_version_string = b"1"
     site_tag = "test"
-
-    @property
-    def access_logger(self):
-        class FakeLogger:
-            def info(self, *args, **kwargs):
-                pass
-
-        return FakeLogger()
+    access_logger = logging.getLogger("synapse.access.http.fake")
 
 
 def make_request(
@@ -137,6 +130,7 @@ def make_request(
     access_token=None,
     request=SynapseRequest,
     shorthand=True,
+    federation_auth_origin=None,
 ):
     """
     Make a web request using the given method and path, feed it the
@@ -150,9 +144,11 @@ def make_request(
         a dict.
         shorthand: Whether to try and be helpful and prefix the given URL
         with the usual REST API path, if it doesn't contain it.
+        federation_auth_origin (bytes|None): if set to not-None, we will add a fake
+            Authorization header pretenting to be the given server name.
 
     Returns:
-        A synapse.http.site.SynapseRequest.
+        Tuple[synapse.http.site.SynapseRequest, channel]
     """
     if not isinstance(method, bytes):
         method = method.encode('ascii')
@@ -182,6 +178,11 @@ def make_request(
     if access_token:
         req.requestHeaders.addRawHeader(
             b"Authorization", b"Bearer " + access_token.encode('ascii')
+        )
+
+    if federation_auth_origin is not None:
+        req.requestHeaders.addRawHeader(
+            b"Authorization", b"X-Matrix origin=%s,key=,sig=" % (federation_auth_origin,)
         )
 
     if content:
@@ -288,9 +289,6 @@ def setup_test_homeserver(cleanup_func, *args, **kwargs):
             **kwargs
         )
 
-    pool.runWithConnection = runWithConnection
-    pool.runInteraction = runInteraction
-
     class ThreadPool:
         """
         Threadless thread pool.
@@ -316,8 +314,12 @@ def setup_test_homeserver(cleanup_func, *args, **kwargs):
             return d
 
     clock.threadpool = ThreadPool()
-    pool.threadpool = ThreadPool()
-    pool.running = True
+
+    if pool:
+        pool.runWithConnection = runWithConnection
+        pool.runInteraction = runInteraction
+        pool.threadpool = ThreadPool()
+        pool.running = True
     return d
 
 
@@ -363,6 +365,7 @@ class FakeTransport(object):
     disconnected = False
     buffer = attr.ib(default=b'')
     producer = attr.ib(default=None)
+    autoflush = attr.ib(default=True)
 
     def getPeer(self):
         return None
@@ -413,31 +416,44 @@ class FakeTransport(object):
     def write(self, byt):
         self.buffer = self.buffer + byt
 
-        def _write():
-            if not self.buffer:
-                # nothing to do. Don't write empty buffers: it upsets the
-                # TLSMemoryBIOProtocol
-                return
-
-            if self.disconnected:
-                return
-            logger.info("%s->%s: %s", self._protocol, self.other, self.buffer)
-
-            if getattr(self.other, "transport") is not None:
-                try:
-                    self.other.dataReceived(self.buffer)
-                    self.buffer = b""
-                except Exception as e:
-                    logger.warning("Exception writing to protocol: %s", e)
-                return
-
-            self._reactor.callLater(0.0, _write)
-
         # always actually do the write asynchronously. Some protocols (notably the
         # TLSMemoryBIOProtocol) get very confused if a read comes back while they are
         # still doing a write. Doing a callLater here breaks the cycle.
-        self._reactor.callLater(0.0, _write)
+        if self.autoflush:
+            self._reactor.callLater(0.0, self.flush)
 
     def writeSequence(self, seq):
         for x in seq:
             self.write(x)
+
+    def flush(self, maxbytes=None):
+        if not self.buffer:
+            # nothing to do. Don't write empty buffers: it upsets the
+            # TLSMemoryBIOProtocol
+            return
+
+        if self.disconnected:
+            return
+
+        if getattr(self.other, "transport") is None:
+            # the other has no transport yet; reschedule
+            if self.autoflush:
+                self._reactor.callLater(0.0, self.flush)
+            return
+
+        if maxbytes is not None:
+            to_write = self.buffer[:maxbytes]
+        else:
+            to_write = self.buffer
+
+        logger.info("%s->%s: %s", self._protocol, self.other, to_write)
+
+        try:
+            self.other.dataReceived(to_write)
+        except Exception as e:
+            logger.warning("Exception writing to protocol: %s", e)
+            return
+
+        self.buffer = self.buffer[len(to_write):]
+        if self.buffer and self.autoflush:
+            self._reactor.callLater(0.0, self.flush)

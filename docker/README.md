@@ -28,9 +28,10 @@ with your postgres database.
 docker run \
     -d \
     --name synapse \
-    -v ${DATA_PATH}:/data \
+    --mount type=volume,src=synapse-data,dst=/data \
     -e SYNAPSE_SERVER_NAME=my.matrix.host \
     -e SYNAPSE_REPORT_STATS=yes \
+    -p 8448:8448 \
     matrixdotorg/synapse:latest
 ```
 
@@ -57,9 +58,10 @@ configuration file there. Multiple application services are supported.
 Synapse requires a valid TLS certificate. You can do one of the following:
 
  * Provide your own certificate and key (as
-   `${DATA_PATH}/${SYNAPSE_SERVER_NAME}.crt` and
-   `${DATA_PATH}/${SYNAPSE_SERVER_NAME}.key`, or elsewhere by providing an
-   entire config as `${SYNAPSE_CONFIG_PATH}`).
+   `${DATA_PATH}/${SYNAPSE_SERVER_NAME}.tls.crt` and
+   `${DATA_PATH}/${SYNAPSE_SERVER_NAME}.tls.key`, or elsewhere by providing an
+   entire config as `${SYNAPSE_CONFIG_PATH}`). In this case, you should forward
+   traffic to port 8448 in the container, for example with `-p 443:8448`.
 
  * Use a reverse proxy to terminate incoming TLS, and forward the plain http
    traffic to port 8008 in the container. In this case you should set `-e
@@ -87,16 +89,22 @@ Global settings:
 * ``SYNAPSE_CONFIG_PATH``, path to a custom config file
 
 If ``SYNAPSE_CONFIG_PATH`` is set, you should generate a configuration file
-then customize it manually. No other environment variable is required.
+then customize it manually: see [Generating a config
+file](#generating-a-config-file).
 
-Otherwise, a dynamic configuration file will be used. The following environment
-variables are available for configuration:
+Otherwise, a dynamic configuration file will be used.
+
+### Environment variables used to build a dynamic configuration file
+
+The following environment variables are used to build the configuration file
+when ``SYNAPSE_CONFIG_PATH`` is not set.
 
 * ``SYNAPSE_SERVER_NAME`` (mandatory), the server public hostname.
 * ``SYNAPSE_REPORT_STATS``, (mandatory, ``yes`` or ``no``), enable anonymous
   statistics reporting back to the Matrix project which helps us to get funding.
-* ``SYNAPSE_NO_TLS``, set this variable to disable TLS in Synapse (use this if
-  you run your own TLS-capable reverse proxy).
+* `SYNAPSE_NO_TLS`, (accepts `true`, `false`, `on`, `off`, `1`, `0`, `yes`, `no`]): disable
+  TLS in Synapse (use this if you run your own TLS-capable reverse proxy). Defaults
+  to `false` (ie, TLS is enabled by default).
 * ``SYNAPSE_ENABLE_REGISTRATION``, set this variable to enable registration on
   the Synapse instance.
 * ``SYNAPSE_ALLOW_GUEST``, set this variable to allow guest joining this server.
@@ -132,7 +140,7 @@ Database specific values (will use SQLite if not set):
   **NOTE**: You are highly encouraged to use postgresql! Please use the compose
   file to make it easier to deploy.
 * `POSTGRES_USER` - The user for the synapse postgres database. [default:
-  `matrix`]
+  `synapse`]
 
 Mail server specific values (will not send emails if not set):
 
@@ -143,3 +151,31 @@ Mail server specific values (will not send emails if not set):
   any.
 * ``SYNAPSE_SMTP_PASSWORD``, password for authenticating against the mail
   server if any.
+
+### Generating a config file
+
+It is possible to generate a basic configuration file for use with
+`SYNAPSE_CONFIG_PATH` using the `generate` commandline option. You will need to
+specify values for `SYNAPSE_CONFIG_PATH`, `SYNAPSE_SERVER_NAME` and
+`SYNAPSE_REPORT_STATS`, and mount a docker volume to store the data on. For
+example:
+
+```
+docker run -it --rm
+    --mount type=volume,src=synapse-data,dst=/data \
+    -e SYNAPSE_CONFIG_PATH=/data/homeserver.yaml \
+    -e SYNAPSE_SERVER_NAME=my.matrix.host \
+    -e SYNAPSE_REPORT_STATS=yes \
+    matrixdotorg/synapse:latest generate
+```
+
+This will generate a `homeserver.yaml` in (typically)
+`/var/lib/docker/volumes/synapse-data/_data`, which you can then customise and
+use with:
+
+```
+docker run -d --name synapse \
+    --mount type=volume,src=synapse-data,dst=/data \
+    -e SYNAPSE_CONFIG_PATH=/data/homeserver.yaml \
+    matrixdotorg/synapse:latest
+```

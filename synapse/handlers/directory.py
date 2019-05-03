@@ -44,6 +44,7 @@ class DirectoryHandler(BaseHandler):
         self.appservice_handler = hs.get_application_service_handler()
         self.event_creation_handler = hs.get_event_creation_handler()
         self.config = hs.config
+        self.enable_room_list_search = hs.config.enable_room_list_search
 
         self.federation = hs.get_federation_client()
         hs.get_federation_registry().register_query_handler(
@@ -67,7 +68,7 @@ class DirectoryHandler(BaseHandler):
         # TODO(erikj): Add transactions.
         # TODO(erikj): Check if there is a current association.
         if not servers:
-            users = yield self.state.get_current_user_in_room(room_id)
+            users = yield self.state.get_current_users_in_room(room_id)
             servers = set(get_domain_from_id(u) for u in users)
 
         if not servers:
@@ -267,7 +268,7 @@ class DirectoryHandler(BaseHandler):
                 Codes.NOT_FOUND
             )
 
-        users = yield self.state.get_current_user_in_room(room_id)
+        users = yield self.state.get_current_users_in_room(room_id)
         extra_servers = set(get_domain_from_id(u) for u in users)
         servers = set(extra_servers) | set(servers)
 
@@ -410,6 +411,13 @@ class DirectoryHandler(BaseHandler):
 
         if visibility not in ["public", "private"]:
             raise SynapseError(400, "Invalid visibility setting")
+
+        if visibility == "public" and not self.enable_room_list_search:
+            # The room list has been disabled.
+            raise AuthError(
+                403,
+                "This user is not permitted to publish rooms to the room list"
+            )
 
         room = yield self.store.get_room(room_id)
         if room is None:

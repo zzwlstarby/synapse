@@ -33,14 +33,19 @@ from synapse.replication.slave.storage._base import BaseSlavedStore
 from synapse.replication.slave.storage.account_data import SlavedAccountDataStore
 from synapse.replication.slave.storage.appservice import SlavedApplicationServiceStore
 from synapse.replication.slave.storage.client_ips import SlavedClientIpStore
+from synapse.replication.slave.storage.deviceinbox import SlavedDeviceInboxStore
+from synapse.replication.slave.storage.devices import SlavedDeviceStore
 from synapse.replication.slave.storage.directory import DirectoryStore
 from synapse.replication.slave.storage.events import SlavedEventStore
 from synapse.replication.slave.storage.keys import SlavedKeyStore
+from synapse.replication.slave.storage.push_rule import SlavedPushRuleStore
+from synapse.replication.slave.storage.receipts import SlavedReceiptsStore
 from synapse.replication.slave.storage.registration import SlavedRegistrationStore
 from synapse.replication.slave.storage.room import RoomStore
 from synapse.replication.slave.storage.transactions import SlavedTransactionStore
 from synapse.replication.tcp.client import ReplicationClientHandler
 from synapse.rest.client.v1.login import LoginRestServlet
+from synapse.rest.client.v1.push_rule import PushRuleRestServlet
 from synapse.rest.client.v1.room import (
     JoinedRoomMemberListRestServlet,
     PublicRoomListRestServlet,
@@ -48,7 +53,11 @@ from synapse.rest.client.v1.room import (
     RoomMemberListRestServlet,
     RoomStateRestServlet,
 )
+from synapse.rest.client.v1.voip import VoipRestServlet
+from synapse.rest.client.v2_alpha.account import ThreepidRestServlet
+from synapse.rest.client.v2_alpha.keys import KeyChangesServlet, KeyQueryServlet
 from synapse.rest.client.v2_alpha.register import RegisterRestServlet
+from synapse.rest.client.versions import VersionsRestServlet
 from synapse.server import HomeServer
 from synapse.storage.engines import create_engine
 from synapse.util.httpresourcetree import create_resource_tree
@@ -60,6 +69,10 @@ logger = logging.getLogger("synapse.app.client_reader")
 
 
 class ClientReaderSlavedStore(
+    SlavedDeviceInboxStore,
+    SlavedDeviceStore,
+    SlavedReceiptsStore,
+    SlavedPushRuleStore,
     SlavedAccountDataStore,
     SlavedEventStore,
     SlavedKeyStore,
@@ -96,12 +109,15 @@ class ClientReaderServer(HomeServer):
                     RoomEventContextServlet(self).register(resource)
                     RegisterRestServlet(self).register(resource)
                     LoginRestServlet(self).register(resource)
+                    ThreepidRestServlet(self).register(resource)
+                    KeyQueryServlet(self).register(resource)
+                    KeyChangesServlet(self).register(resource)
+                    VoipRestServlet(self).register(resource)
+                    PushRuleRestServlet(self).register(resource)
+                    VersionsRestServlet().register(resource)
 
                     resources.update({
-                        "/_matrix/client/r0": resource,
-                        "/_matrix/client/unstable": resource,
-                        "/_matrix/client/v2_alpha": resource,
-                        "/_matrix/client/api/v1": resource,
+                        "/_matrix/client": resource,
                     })
 
         root_resource = create_resource_tree(resources, NoResource())

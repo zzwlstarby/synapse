@@ -22,7 +22,7 @@ from canonicaljson import encode_canonical_json, json
 from twisted.internet import defer
 from twisted.internet.defer import succeed
 
-from synapse.api.constants import EventTypes, Membership, RoomVersions
+from synapse.api.constants import EventTypes, Membership
 from synapse.api.errors import (
     AuthError,
     Codes,
@@ -30,6 +30,7 @@ from synapse.api.errors import (
     NotFoundError,
     SynapseError,
 )
+from synapse.api.room_versions import RoomVersions
 from synapse.api.urls import ConsentURIBuilder
 from synapse.events.utils import serialize_event
 from synapse.events.validator import EventValidator
@@ -191,7 +192,7 @@ class MessageHandler(object):
                     "Getting joined members after leaving is not implemented"
                 )
 
-        users_with_profile = yield self.state.get_current_user_in_room(room_id)
+        users_with_profile = yield self.state.get_current_users_in_room(room_id)
 
         # If this is an AS, double check that they are allowed to see the members.
         # This can either be because the AS user is in the room or because there
@@ -243,12 +244,19 @@ class EventCreationHandler(object):
 
         self.spam_checker = hs.get_spam_checker()
 
-        if self.config.block_events_without_consent_error is not None:
+        self._block_events_without_consent_error = (
+            self.config.block_events_without_consent_error
+        )
+
+        # we need to construct a ConsentURIBuilder here, as it checks that the necessary
+        # config options, but *only* if we have a configuration for which we are
+        # going to need it.
+        if self._block_events_without_consent_error:
             self._consent_uri_builder = ConsentURIBuilder(self.config)
 
     @defer.inlineCallbacks
     def create_event(self, requester, event_dict, token_id=None, txn_id=None,
-                     prev_events_and_hashes=None):
+                     prev_events_and_hashes=None, require_consent=True):
         """
         Given a dict from a client, create a new event.
 
@@ -269,6 +277,9 @@ class EventCreationHandler(object):
                 where *hashes* is a map from algorithm to hash.
 
                 If None, they will be requested from the database.
+
+            require_consent (bool): Whether to check if the requester has
+                consented to privacy policy.
         Raises:
             ResourceLimitError if server is blocked to some resource being
             exceeded
@@ -310,7 +321,7 @@ class EventCreationHandler(object):
                     )
 
         is_exempt = yield self._is_exempt_from_privacy_policy(builder, requester)
-        if not is_exempt:
+        if require_consent and not is_exempt:
             yield self.assert_accepted_privacy_policy(requester)
 
         if token_id is not None:
@@ -378,7 +389,7 @@ class EventCreationHandler(object):
         Raises:
             ConsentNotGivenError: if the user has not given consent yet
         """
-        if self.config.block_events_without_consent_error is None:
+        if self._block_events_without_consent_error is None:
             return
 
         # exempt AS users from needing consent
@@ -405,7 +416,7 @@ class EventCreationHandler(object):
         consent_uri = self._consent_uri_builder.build_user_consent_uri(
             requester.user.localpart,
         )
-        msg = self.config.block_events_without_consent_error % {
+        msg = self._block_events_without_consent_error % {
             'consent_uri': consent_uri,
         }
         raise ConsentNotGivenError(
@@ -436,10 +447,11 @@ class EventCreationHandler(object):
 
         if event.is_state():
             prev_state = yield self.deduplicate_state_event(event, context)
-            logger.info(
-                "Not bothering to persist duplicate state event %s", event.event_id,
-            )
             if prev_state is not None:
+                logger.info(
+                    "Not bothering to persist state event %s duplicated by %s",
+                    event.event_id, prev_state.event_id,
+                )
                 defer.returnValue(prev_state)
 
         yield self.handle_new_client_event(
@@ -592,7 +604,9 @@ class EventCreationHandler(object):
         """
 
         if event.is_state() and (event.type, event.state_key) == (EventTypes.Create, ""):
-            room_version = event.content.get("room_version", RoomVersions.V1)
+            room_version = event.content.get(
+                "room_version", RoomVersions.V1.identifier
+            )
         else:
             room_version = yield self.store.get_room_version(event.room_id)
 

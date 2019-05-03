@@ -20,23 +20,54 @@ from synapse.types import RoomAlias
 from synapse.util.stringutils import random_string_with_symbols
 
 
+class AccountValidityConfig(Config):
+    def __init__(self, config, synapse_config):
+        self.enabled = config.get("enabled", False)
+        self.renew_by_email_enabled = ("renew_at" in config)
+
+        if self.enabled:
+            if "period" in config:
+                self.period = self.parse_duration(config["period"])
+            else:
+                raise ConfigError("'period' is required when using account validity")
+
+            if "renew_at" in config:
+                self.renew_at = self.parse_duration(config["renew_at"])
+
+            if "renew_email_subject" in config:
+                self.renew_email_subject = config["renew_email_subject"]
+            else:
+                self.renew_email_subject = "Renew your %(app)s account"
+
+        if self.renew_by_email_enabled and "public_baseurl" not in synapse_config:
+            raise ConfigError("Can't send renewal emails without 'public_baseurl'")
+
+
 class RegistrationConfig(Config):
 
     def read_config(self, config):
         self.enable_registration = bool(
-            strtobool(str(config["enable_registration"]))
+            strtobool(str(config.get("enable_registration", False)))
         )
         if "disable_registration" in config:
             self.enable_registration = not bool(
                 strtobool(str(config["disable_registration"]))
             )
 
+        self.account_validity = AccountValidityConfig(
+            config.get("account_validity", {}), config,
+        )
+
         self.registrations_require_3pid = config.get("registrations_require_3pid", [])
         self.allowed_local_3pids = config.get("allowed_local_3pids", [])
+        self.enable_3pid_lookup = config.get("enable_3pid_lookup", True)
         self.registration_shared_secret = config.get("registration_shared_secret")
 
         self.bcrypt_rounds = config.get("bcrypt_rounds", 12)
-        self.trusted_third_party_id_servers = config["trusted_third_party_id_servers"]
+        self.trusted_third_party_id_servers = config.get(
+            "trusted_third_party_id_servers",
+            ["matrix.org", "vector.im"],
+        )
         self.default_identity_server = config.get("default_identity_server")
         self.allow_guest_access = config.get("allow_guest_access", False)
 
@@ -64,9 +95,39 @@ class RegistrationConfig(Config):
 
         return """\
         ## Registration ##
+        #
+        # Registration can be rate-limited using the parameters in the "Ratelimiting"
+        # section of this file.
 
         # Enable registration for new users.
-        enable_registration: False
+        #
+        #enable_registration: false
+
+        # Optional account validity configuration. This allows for accounts to be denied
+        # any request after a given period.
+        #
+        # ``enabled`` defines whether the account validity feature is enabled. Defaults
+        # to False.
+        #
+        # ``period`` allows setting the period after which an account is valid
+        # after its registration. When renewing the account, its validity period
+        # will be extended by this amount of time. This parameter is required when using
+        # the account validity feature.
+        #
+        # ``renew_at`` is the amount of time before an account's expiry date at which
+        # Synapse will send an email to the account's email address with a renewal link.
+        # This needs the ``email`` and ``public_baseurl`` configuration sections to be
+        # filled.
+        #
+        # ``renew_email_subject`` is the subject of the email sent out with the renewal
+        # link. ``%%(app)s`` can be used as a placeholder for the ``app_name`` parameter
+        # from the ``email`` section.
+        #
+        #account_validity:
+        #  enabled: True
+        #  period: 6w
+        #  renew_at: 1w
+        #  renew_email_subject: "Renew your %%(app)s account"
 
         # The user must provide all of the below types of 3PID when registering.
         #
@@ -77,7 +138,7 @@ class RegistrationConfig(Config):
         # Explicitly disable asking for MSISDNs from the registration
         # flow (overrides registrations_require_3pid if MSISDNs are set as required)
         #
-        #disable_msisdn_registration: True
+        #disable_msisdn_registration: true
 
         # Mandate that users are only allowed to associate certain formats of
         # 3PIDs with accounts on this server.
@@ -90,8 +151,12 @@ class RegistrationConfig(Config):
         #  - medium: msisdn
         #    pattern: '\\+44'
 
-        # If set, allows registration by anyone who also has the shared
-        # secret, even if registration is otherwise disabled.
+        # Enable 3PIDs lookup requests to identity servers from this server.
+        #
+        #enable_3pid_lookup: true
+
+        # If set, allows registration of standard or admin accounts by anyone who
+        # has the shared secret, even if registration is otherwise disabled.
         #
         %(registration_shared_secret)s
 
@@ -101,13 +166,13 @@ class RegistrationConfig(Config):
         # N.B. that increasing this will exponentially increase the time required
         # to register or login - e.g. 24 => 2^24 rounds which will take >20 mins.
         #
-        bcrypt_rounds: 12
+        #bcrypt_rounds: 12
 
         # Allows users to register as guests without a password/email/etc, and
         # participate in rooms hosted on this server which have been made
         # accessible to anonymous users.
         #
-        allow_guest_access: False
+        #allow_guest_access: false
 
         # The identity server which we suggest that clients should use when users log
         # in on this server.
@@ -123,9 +188,9 @@ class RegistrationConfig(Config):
         # Also defines the ID server which will be called when an account is
         # deactivated (one will be picked arbitrarily).
         #
-        trusted_third_party_id_servers:
-          - matrix.org
-          - vector.im
+        #trusted_third_party_id_servers:
+        #  - matrix.org
+        #  - vector.im
 
         # Users who register on this homeserver will automatically be joined
         # to these rooms
@@ -139,7 +204,7 @@ class RegistrationConfig(Config):
         # Setting to false means that if the rooms are not manually created,
         # users cannot be auto-joined since they do not exist.
         #
-        autocreate_auto_join_rooms: true
+        #autocreate_auto_join_rooms: true
         """ % locals()
 
     def add_arguments(self, parser):

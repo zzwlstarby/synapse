@@ -62,6 +62,7 @@ from synapse.python_dependencies import check_requirements
 from synapse.replication.http import REPLICATION_PREFIX, ReplicationRestResource
 from synapse.replication.tcp.resource import ReplicationStreamProtocolFactory
 from synapse.rest import ClientRestResource
+from synapse.rest.admin import AdminRestResource
 from synapse.rest.key.v2 import KeyApiV2Resource
 from synapse.rest.media.v0.content_repository import ContentRepoResource
 from synapse.rest.well_known import WellKnownResource
@@ -180,6 +181,7 @@ class SynapseHomeServer(HomeServer):
                 "/_matrix/client/v2_alpha": client_resource,
                 "/_matrix/client/versions": client_resource,
                 "/.well-known/matrix/client": WellKnownResource(self),
+                "/_synapse/admin": AdminRestResource(self),
             })
 
             if self.get_config().saml2_enabled:
@@ -376,6 +378,7 @@ def setup(config_options):
     logger.info("Database prepared in %s.", config.database_config['name'])
 
     hs.setup()
+    hs.setup_master()
 
     @defer.inlineCallbacks
     def do_acme():
@@ -517,6 +520,7 @@ def run(hs):
             uptime = 0
 
         stats["homeserver"] = hs.config.server_name
+        stats["server_context"] = hs.config.server_context
         stats["timestamp"] = now
         stats["uptime_seconds"] = uptime
         version = sys.version_info
@@ -557,7 +561,6 @@ def run(hs):
 
         stats["database_engine"] = hs.get_datastore().database_engine_name
         stats["database_server_version"] = hs.get_datastore().get_server_version()
-
         logger.info("Reporting stats to matrix.org: %s" % (stats,))
         try:
             yield hs.get_simple_http_client().put_json(
@@ -636,17 +639,15 @@ def run(hs):
         # be quite busy the first few minutes
         clock.call_later(5 * 60, start_phone_stats_home)
 
-    if hs.config.daemonize and hs.config.print_pidfile:
-        print(hs.config.pid_file)
-
     _base.start_reactor(
         "synapse-homeserver",
-        hs.config.soft_file_limit,
-        hs.config.gc_thresholds,
-        hs.config.pid_file,
-        hs.config.daemonize,
-        hs.config.cpu_affinity,
-        logger,
+        soft_file_limit=hs.config.soft_file_limit,
+        gc_thresholds=hs.config.gc_thresholds,
+        pid_file=hs.config.pid_file,
+        daemonize=hs.config.daemonize,
+        cpu_affinity=hs.config.cpu_affinity,
+        print_pidfile=hs.config.print_pidfile,
+        logger=logger,
     )
 
 

@@ -19,7 +19,8 @@ import pkg_resources
 
 from twisted.internet.defer import Deferred
 
-from synapse.rest.client.v1 import admin, login, room
+import synapse.rest.admin
+from synapse.rest.client.v1 import login, room
 
 from tests.unittest import HomeserverTestCase
 
@@ -33,7 +34,7 @@ class EmailPusherTests(HomeserverTestCase):
 
     skip = "No Jinja installed" if not load_jinja2_templates else None
     servlets = [
-        admin.register_servlets,
+        synapse.rest.admin.register_servlets,
         room.register_servlets,
         login.register_servlets,
     ]
@@ -63,8 +64,10 @@ class EmailPusherTests(HomeserverTestCase):
         config.email_smtp_port = 20
         config.require_transport_security = False
         config.email_smtp_user = None
+        config.email_smtp_pass = None
         config.email_app_name = "Matrix"
         config.email_notif_from = "test@example.com"
+        config.email_riot_base_url = None
 
         hs = self.setup_test_homeserver(config=config, sendmail=sendmail)
 
