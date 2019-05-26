@@ -439,8 +439,7 @@ class PerspectivesKeyFetcherTestCase(unittest.HomeserverTestCase):
         self.assertEqual(res["ts_valid_until_ms"], VALID_UNTIL_TS)
 
         self.assertEqual(
-            bytes(res["key_json"]),
-            canonicaljson.encode_canonical_json(response),
+            bytes(res["key_json"]), canonicaljson.encode_canonical_json(response)
         )
 
     def test_invalid_perspectives_responses(self):
