@@ -264,10 +264,12 @@ def _check_sigs_on_pdus(keyring, room_version, pdus):
         if not _is_invite_via_3pid(p.pdu)
     ]
 
-    more_deferreds = keyring.verify_json_objects_for_server([
-        (p.sender_domain, p.redacted_pdu_json, 0)
-        for p in pdus_to_check_sender
-    ])
+    more_deferreds = keyring.verify_json_objects_for_server(
+        [
+            (p.sender_domain, p.redacted_pdu_json, p.pdu.origin_server_ts)
+            for p in pdus_to_check_sender
+        ]
+    )
 
     def sender_err(e, pdu_to_check):
         errmsg = "event id %s: unable to verify signature for sender %s: %s" % (
@@ -297,10 +299,16 @@ def _check_sigs_on_pdus(keyring, room_version, pdus):
             if p.sender_domain != get_domain_from_id(p.pdu.event_id)
         ]
 
-        more_deferreds = keyring.verify_json_objects_for_server([
-            (get_domain_from_id(p.pdu.event_id), p.redacted_pdu_json, 0)
-            for p in pdus_to_check_event_id
-        ])
+        more_deferreds = keyring.verify_json_objects_for_server(
+            [
+                (
+                    get_domain_from_id(p.pdu.event_id),
+                    p.redacted_pdu_json,
+                    p.pdu.origin_server_ts,
+                )
+                for p in pdus_to_check_event_id
+            ]
+        )
 
         def event_err(e, pdu_to_check):
             errmsg = (
