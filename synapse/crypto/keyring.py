@@ -56,6 +56,9 @@ from synapse.util.logcontext import (
 from synapse.util.metrics import Measure
 from synapse.util.retryutils import NotRetryingDestination
 
+# the maximum amount of time we cache a signing key for, before we consider it invalid.
+MAX_KEY_VALID_MS = 7 * 24 * 3600 * 1000
+
 logger = logging.getLogger(__name__)
 
 
@@ -482,6 +485,9 @@ class BaseV2KeyFetcher(object):
             Deferred[dict[str, FetchKeyResult]]: map from key_id to result object
         """
         ts_valid_until_ms = response_json[u"valid_until_ts"]
+
+        # cap the ts_valid_until_ms, to stop people poisoning our cache forever
+        ts_valid_until_ms = min(ts_valid_until_ms, time_added_ms + MAX_KEY_VALID_MS)
 
         # start by extracting the keys from the response, since they may be required
         # to validate the signature on the response.
