@@ -529,7 +529,10 @@ class SQLBaseStore(object):
 
         def inner_func(conn, *args, **kwargs):
             with LoggingContext("runWithConnection", parent_context) as context:
-                sched_duration_sec = time.time() - start_time
+                now = time.time()
+                if now < start_time:
+                    raise ValueError("time went backwards: %f < %f", now, start_time)
+                sched_duration_sec = now - start_time
                 sql_scheduling_timer.observe(sched_duration_sec)
                 context.add_database_scheduled(sched_duration_sec)
 
