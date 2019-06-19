@@ -353,6 +353,8 @@ class LoggingContext(object):
         return res
 
     def add_database_transaction(self, duration_sec):
+        if duration_sec < 0:
+            raise ValueError('DB txn time can only be non-negative')
         self._resource_usage.db_txn_count += 1
         self._resource_usage.db_txn_duration_sec += duration_sec
 
@@ -363,6 +365,8 @@ class LoggingContext(object):
             sched_sec (float): number of seconds it took us to get a
                 connection
         """
+        if sched_sec < 0:
+            raise ValueError('DB scheduling time can only be non-negative')
         self._resource_usage.db_sched_duration_sec += sched_sec
 
     def record_event_fetch(self, event_count):
