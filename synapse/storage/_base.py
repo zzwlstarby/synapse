@@ -75,6 +75,15 @@ UNIQUE_INDEX_BACKGROUND_UPDATES = {
 _CURRENT_STATE_CACHE_NAME = "cs_cache_fake"
 
 
+def monotonic_time():
+    """Get a monotonic timestamp, in seconds
+
+    Returns: float
+    """
+    # time.clock() can go backwards
+    return time.monotonic()
+
+
 class LoggingTransaction(object):
     """An object that almost-transparently proxies for the 'txn' object
     passed to the constructor. Adds logging and metrics to the .execute()
@@ -167,22 +176,22 @@ class PerformanceCounters(object):
         self.current_counters = {}
         self.previous_counters = {}
 
-    def update(self, key, start_time, end_time=None):
-        if end_time is None:
-            end_time = time.time()
-        duration = end_time - start_time
+    def update(self, key, duration_secs):
         count, cum_time = self.current_counters.get(key, (0, 0))
         count += 1
-        cum_time += duration
+        cum_time += duration_secs
         self.current_counters[key] = (count, cum_time)
-        return end_time
 
-    def interval(self, interval_duration, limit=3):
+    def interval(self, interval_duration_secs, limit=3):
         counters = []
         for name, (count, cum_time) in iteritems(self.current_counters):
             prev_count, prev_time = self.previous_counters.get(name, (0, 0))
             counters.append(
-                ((cum_time - prev_time) / interval_duration, count - prev_count, name)
+                (
+                    (cum_time - prev_time) / interval_duration_secs,
+                    count - prev_count,
+                    name,
+                )
             )
 
         self.previous_counters = dict(self.current_counters)
@@ -352,25 +361,26 @@ class SQLBaseStore(object):
         )
 
     def start_profiling(self):
-        self._previous_loop_ts = self._clock.time_msec()
+        self._previous_loop_ts = monotonic_time()
 
         def loop():
             curr = self._current_txn_total_time
             prev = self._previous_txn_total_time
             self._previous_txn_total_time = curr
 
-            time_now = self._clock.time_msec()
+            time_now = monotonic_time()
             time_then = self._previous_loop_ts
             self._previous_loop_ts = time_now
 
-            ratio = (curr - prev) / (time_now - time_then)
+            duration = time_now - time_then
+            ratio = (curr - prev) / duration
 
             top_three_counters = self._txn_perf_counters.interval(
-                time_now - time_then, limit=3
+                duration, limit=3
             )
 
             top_3_event_counters = self._get_event_counters.interval(
-                time_now - time_then, limit=3
+                duration, limit=3
             )
 
             perf_logger.info(
@@ -385,7 +395,7 @@ class SQLBaseStore(object):
     def _new_transaction(
         self, conn, desc, after_callbacks, exception_callbacks, func, *args, **kwargs
     ):
-        start = time.time()
+        start = monotonic_time()
         txn_id = self._TXN_ID
 
         # We don't really need these to be unique, so lets stop it from
@@ -451,7 +461,7 @@ class SQLBaseStore(object):
             logger.debug("[TXN FAIL] {%s} %s", name, e)
             raise
         finally:
-            end = time.time()
+            end = monotonic_time()
             duration = end - start
 
             LoggingContext.current_context().add_database_transaction(duration)
@@ -459,7 +469,7 @@ class SQLBaseStore(object):
             transaction_logger.debug("[TXN END] {%s} %f sec", name, duration)
 
             self._current_txn_total_time += duration
-            self._txn_perf_counters.update(desc, start, end)
+            self._txn_perf_counters.update(desc, duration)
             sql_txn_timer.labels(desc).observe(duration)
 
     @defer.inlineCallbacks
@@ -525,14 +535,11 @@ class SQLBaseStore(object):
             )
             parent_context = None
 
-        start_time = time.time()
+        start_time = monotonic_time()
 
         def inner_func(conn, *args, **kwargs):
             with LoggingContext("runWithConnection", parent_context) as context:
-                now = time.time()
-                if now < start_time:
-                    raise ValueError("time went backwards: %f < %f", now, start_time)
-                sched_duration_sec = now - start_time
+                sched_duration_sec = monotonic_time() - start_time
                 sql_scheduling_timer.observe(sched_duration_sec)
                 context.add_database_scheduled(sched_duration_sec)
 
