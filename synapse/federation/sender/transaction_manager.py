@@ -42,13 +42,19 @@ class TransactionManager(object):
         # HACK to get unique tx id
         self._next_txn_id = int(self.clock.time_msec())
 
-        self.limiter = defer.DeferredSemaphore(10)
+        self.limiter = defer.DeferredSemaphore(25)
 
         LaterGauge(
             "synapse_federation_transaction_client_concurrency",
             "",
             [],
             lambda: self.limiter.limit - self.limiter.tokens,
+        )
+        LaterGauge(
+            "synapse_federation_transaction_client_concurrency_queue",
+            "",
+            [],
+            lambda: len(self.limiter.waiting),
         )
 
     @measure_func("_send_new_transaction")
