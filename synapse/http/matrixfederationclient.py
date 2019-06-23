@@ -413,8 +413,11 @@ class MatrixFederationHttpClient(object):
                         if e.osError == 113:
                             # No route to host -- they're gone
                             raise_from(RequestSendFailed(e, can_retry=False), e)
-                        elif o.osError == 111:
+                        elif e.osError == 111:
                             # Refused connection -- they're gone
+                            raise_from(RequestSendFailed(e, can_retry=False), e)
+                        elif e.osError == 99:
+                            # Cannot assign address -- don't try?
                             raise_from(RequestSendFailed(e, can_retry=False), e)
 
                         # Some other socket error, try retrying
