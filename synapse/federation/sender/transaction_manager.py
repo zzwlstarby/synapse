@@ -40,6 +40,8 @@ class TransactionManager(object):
         # HACK to get unique tx id
         self._next_txn_id = int(self.clock.time_msec())
 
+        self.limiter = defer.DeferredSemaphore(50)
+
     @measure_func("_send_new_transaction")
     @defer.inlineCallbacks
     def send_new_transaction(self, destination, pending_pdus, pending_edus):
