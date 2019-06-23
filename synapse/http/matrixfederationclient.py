@@ -32,7 +32,7 @@ from signedjson.sign import sign_json
 from zope.interface import implementer
 
 from twisted.internet import defer, protocol
-from twisted.internet.error import DNSLookupError, ConnectError
+from twisted.internet.error import DNSLookupError, ConnectError, ConnectionRefusedError
 from twisted.internet.interfaces import IReactorPluggableNameResolver
 from twisted.internet.task import _EPSILON, Cooperator
 from twisted.web._newclient import ResponseDone, RequestTransmissionFailed
@@ -409,7 +409,10 @@ class MatrixFederationHttpClient(object):
                             response = yield request_deferred
                     except DNSLookupError as e:
                         raise_from(RequestSendFailed(e, can_retry=retry_on_dns_fail), e)
-                    except ConnectError as e:
+                    except DNSServerError as e:
+                        # Their domain's nameserver is busted and can't give us a result
+                        raise_from(RequestSendFailed(e, can_retry=retry_on_dns_fail), e)
+                    except (ConnectError, ConnectionRefusedError) as e:
                         if e.osError == 113:
                             # No route to host -- they're gone
                             raise_from(RequestSendFailed(e, can_retry=False), e)
