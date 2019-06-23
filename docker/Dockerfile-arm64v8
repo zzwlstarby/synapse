@@ -49,6 +49,4 @@ VOLUME ["/data"]
 
 EXPOSE 8008/tcp 8009/tcp 8448/tcp
 
-RUN apk add su-exec
-
 CMD ["/nix/var/nix/profiles/default/bin/python3", "/start.py"]
