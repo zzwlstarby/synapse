@@ -1,0 +1,52 @@
+
+FROM alpine
+
+# Enable HTTPS support in wget.
+RUN apk add --no-cache --update openssl
+
+# Download Nix and install it into the system.
+RUN wget https://nixos.org/releases/nix/nix-2.2.1/nix-2.2.1-$(uname -m)-linux.tar.bz2 \
+  && tar xjf nix-*-$(uname -m)-linux.tar.bz2 \
+  && addgroup -g 30000 -S nixbld \
+  && for i in $(seq 1 30); do adduser -S -D -h /var/empty -g "Nix build user $i" -u $((30000 + i)) -G nixbld nixbld$i ; done \
+  && mkdir -m 0755 /etc/nix \
+  && echo 'sandbox = false' > /etc/nix/nix.conf \
+  && mkdir -m 0755 /nix && USER=root sh nix-*-$(uname -m)-linux/install \
+  && ln -s /nix/var/nix/profiles/default/etc/profile.d/nix.sh /etc/profile.d/ \
+  && rm -r /nix-*-$(uname -m)-linux* \
+  && rm -rf /var/cache/apk/* \
+  && /nix/var/nix/profiles/default/bin/nix-collect-garbage --delete-old \
+  && /nix/var/nix/profiles/default/bin/nix-store --optimise \
+  && /nix/var/nix/profiles/default/bin/nix-store --verify --check-contents
+
+ENV \
+    ENV=/etc/profile \
+    USER=root \
+    PATH=/nix/var/nix/profiles/default/bin:/nix/var/nix/profiles/default/sbin:/bin:/sbin:/usr/bin:/usr/sbin \
+    GIT_SSL_CAINFO=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt \
+    NIX_SSL_CERT_FILE=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt \
+    NIX_PATH=/nix/var/nix/profiles/per-user/root/channels \
+    PYTHONPATH=/nix/var/nix/profiles/default/lib/python3.7/site-packages/
+
+RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable && nix-channel --update
+
+COPY ./docker/synapse-deps.nix /synapse-deps.nix
+
+RUN nix-env -if /synapse-deps.nix
+
+# now install synapse and all of the python deps to /install.
+
+COPY synapse /synapse/synapse/
+COPY scripts /synapse/scripts/
+COPY MANIFEST.in README.rst setup.py synctl /synapse/
+
+RUN pip install --no-warn-script-location "/synapse"[all]
+
+COPY ./docker/start.py /start.py
+COPY ./docker/conf /conf
+
+VOLUME ["/data"]
+
+EXPOSE 8008/tcp 8009/tcp 8448/tcp
+
+CMD ["python3", "/start.py"]
