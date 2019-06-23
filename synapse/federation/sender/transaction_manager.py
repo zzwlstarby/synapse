@@ -23,6 +23,8 @@ from synapse.util.metrics import measure_func
 
 logger = logging.getLogger(__name__)
 
+from synapse.metrics import LaterGauge
+
 
 class TransactionManager(object):
     """Helper class which handles building and sending transactions
@@ -40,7 +42,14 @@ class TransactionManager(object):
         # HACK to get unique tx id
         self._next_txn_id = int(self.clock.time_msec())
 
-        self.limiter = defer.DeferredSemaphore(50)
+        self.limiter = defer.DeferredSemaphore(10)
+
+        LaterGauge(
+            "synapse_federation_transaction_client_concurrency",
+            "",
+            [],
+            lambda: self.limiter.limit - self.limiter.tokens,
+        )
 
     @measure_func("_send_new_transaction")
     @defer.inlineCallbacks
