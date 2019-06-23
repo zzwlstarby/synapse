@@ -19,6 +19,8 @@ import random
 import sys
 from io import BytesIO
 
+from OpenSSL import SSL
+
 from six import PY3, raise_from, string_types
 from six.moves import urllib
 
@@ -30,10 +32,10 @@ from signedjson.sign import sign_json
 from zope.interface import implementer
 
 from twisted.internet import defer, protocol
-from twisted.internet.error import DNSLookupError, ConnectionRefusedError
+from twisted.internet.error import DNSLookupError, ConnectError
 from twisted.internet.interfaces import IReactorPluggableNameResolver
 from twisted.internet.task import _EPSILON, Cooperator
-from twisted.web._newclient import ResponseDone
+from twisted.web._newclient import ResponseDone, RequestTransmissionFailed
 from twisted.web.http_headers import Headers
 
 import synapse.metrics
@@ -407,7 +409,7 @@ class MatrixFederationHttpClient(object):
                             response = yield request_deferred
                     except DNSLookupError as e:
                         raise_from(RequestSendFailed(e, can_retry=retry_on_dns_fail), e)
-                    except ConnectionRefusedError as e:
+                    except ConnectError as e:
                         if e.osError == 113:
                             # No route to host -- they're gone
                             raise_from(RequestSendFailed(e, can_retry=False), e)
@@ -418,6 +420,18 @@ class MatrixFederationHttpClient(object):
                         # Some other socket error, try retrying
                         logger.info("Failed to send request due to socket error: %s", e)
                         raise_from(RequestSendFailed(e, can_retry=True), e)
+
+                    except RequestTransmissionFailed as e:
+                        for i in e.reasons:
+                            # If it's an OpenSSL error, they probably don't have
+                            # a valid certificate or something else very bad went on.
+                            if i.trap(SSL.Error):
+                                raise_from(RequestSendFailed(e, can_retry=False), e)
+
+                        # If it's not that, raise it normally.
+                        logger.info("Failed to send request: %s", e)
+                        raise_from(RequestSendFailed(e, can_retry=True), e)
+
                     except Exception as e:
                         logger.info("Failed to send request: %s", e)
                         raise_from(RequestSendFailed(e, can_retry=True), e)
