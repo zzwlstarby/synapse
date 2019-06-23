@@ -30,7 +30,7 @@ from signedjson.sign import sign_json
 from zope.interface import implementer
 
 from twisted.internet import defer, protocol
-from twisted.internet.error import DNSLookupError
+from twisted.internet.error import DNSLookupError, ConnectionRefusedError
 from twisted.internet.interfaces import IReactorPluggableNameResolver
 from twisted.internet.task import _EPSILON, Cooperator
 from twisted.web._newclient import ResponseDone
@@ -407,6 +407,17 @@ class MatrixFederationHttpClient(object):
                             response = yield request_deferred
                     except DNSLookupError as e:
                         raise_from(RequestSendFailed(e, can_retry=retry_on_dns_fail), e)
+                    except ConnectionRefusedError as e:
+                        if e.osError == 113:
+                            # No route to host -- they're gone
+                            raise_from(RequestSendFailed(e, can_retry=False), e)
+                        elif o.osError == 111:
+                            # Refused connection -- they're gone
+                            raise_from(RequestSendFailed(e, can_retry=False), e)
+
+                        # Some other socket error, try retrying
+                        logger.info("Failed to send request due to socket error: %s", e)
+                        raise_from(RequestSendFailed(e, can_retry=True), e)
                     except Exception as e:
                         logger.info("Failed to send request: %s", e)
                         raise_from(RequestSendFailed(e, can_retry=True), e)
@@ -557,6 +568,7 @@ class MatrixFederationHttpClient(object):
         ignore_backoff=False,
         backoff_on_404=False,
         try_trailing_slash_on_400=False,
+        retry_on_dns_fail=True,
     ):
         """ Sends the specifed json data using PUT
 
@@ -618,6 +630,7 @@ class MatrixFederationHttpClient(object):
             ignore_backoff=ignore_backoff,
             long_retries=long_retries,
             timeout=timeout,
+            retry_on_dns_fail=retry_on_dns_fail,
         )
 
         body = yield _handle_json_response(
