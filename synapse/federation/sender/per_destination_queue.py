@@ -304,7 +304,7 @@ class PerDestinationQueue(object):
                     break
 
                 # Release the lock after all the work is done
-                self._reactor.callLater(acquired_lock.release, 0.0)
+                self._reactor.callLater(0.0, acquired_lock.release)
                 acquired_lock = None
         except NotRetryingDestination as e:
             logger.debug(
@@ -343,7 +343,7 @@ class PerDestinationQueue(object):
             # We want to be *very* sure we clear this after we stop processing
             self.transmission_loop_running = False
             if acquired_lock:
-                self._reactor.callLater(acquired_lock.release, 0.0)
+                self._reactor.callLater(0.0, acquired_lock.release)
 
     def _get_rr_edus(self, force_flush):
         if not self._pending_rrs:
