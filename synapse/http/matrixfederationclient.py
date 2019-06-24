@@ -31,6 +31,7 @@ from prometheus_client import Counter
 from signedjson.sign import sign_json
 from zope.interface import implementer
 
+from twisted.names.dns import DNSServerError
 from twisted.internet import defer, protocol
 from twisted.internet.error import DNSLookupError, ConnectError, ConnectionRefusedError
 from twisted.internet.interfaces import IReactorPluggableNameResolver
