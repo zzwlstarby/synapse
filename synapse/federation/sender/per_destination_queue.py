@@ -194,9 +194,6 @@ class PerDestinationQueue(object):
                 # We have to keep 2 free slots for presence and rr_edus
                 limit = MAX_EDUS_PER_TRANSACTION - 2
 
-                # Lock before we start doing work
-                acquired_lock = yield make_deferred_yieldable(self._transaction_manager.limiter.acquire())
-
                 device_update_edus, dev_list_id = (
                     yield self._get_device_update_edus(limit)
                 )
@@ -206,6 +203,9 @@ class PerDestinationQueue(object):
                 to_device_edus, device_stream_id = (
                     yield self._get_to_device_message_edus(limit)
                 )
+
+                # Lock before we start doing work
+                acquired_lock = yield make_deferred_yieldable(self._transaction_manager.limiter.acquire())
 
                 pending_edus = device_update_edus + to_device_edus
 
