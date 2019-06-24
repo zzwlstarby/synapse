@@ -35,7 +35,7 @@ from twisted.internet import defer, protocol
 from twisted.internet.error import DNSLookupError, ConnectError, ConnectionRefusedError
 from twisted.internet.interfaces import IReactorPluggableNameResolver
 from twisted.internet.task import _EPSILON, Cooperator
-from twisted.web._newclient import ResponseDone, RequestTransmissionFailed
+from twisted.web._newclient import ResponseDone, RequestTransmissionFailed, ResponseNeverReceived
 from twisted.web.http_headers import Headers
 
 import synapse.metrics
@@ -427,7 +427,7 @@ class MatrixFederationHttpClient(object):
                         logger.info("Failed to send request due to socket error: %s", e)
                         raise_from(RequestSendFailed(e, can_retry=True), e)
 
-                    except RequestTransmissionFailed as e:
+                    except (RequestTransmissionFailed, ResponseNeverReceived) as e:
                         for i in e.reasons:
                             # If it's an OpenSSL error, they probably don't have
                             # a valid certificate or something else very bad went on.

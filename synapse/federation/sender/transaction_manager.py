@@ -42,7 +42,7 @@ class TransactionManager(object):
         # HACK to get unique tx id
         self._next_txn_id = int(self.clock.time_msec())
 
-        self.limiter = defer.DeferredSemaphore(30)
+        self.limiter = defer.DeferredSemaphore(50)
 
         LaterGauge(
             "synapse_federation_transaction_client_concurrency",

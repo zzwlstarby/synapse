@@ -194,6 +194,9 @@ class PerDestinationQueue(object):
                 # We have to keep 2 free slots for presence and rr_edus
                 limit = MAX_EDUS_PER_TRANSACTION - 2
 
+                # Lock before we start doing work
+                acquired_lock = yield make_deferred_yieldable(self._transaction_manager.limiter.acquire())
+
                 device_update_edus, dev_list_id = (
                     yield self._get_device_update_edus(limit)
                 )
@@ -260,6 +263,7 @@ class PerDestinationQueue(object):
                 if not pending_pdus and not pending_edus:
                     logger.debug("TX [%s] Nothing to send", self._destination)
                     self._last_device_stream_id = device_stream_id
+                    acquired_lock = acquired_lock.release()
                     return
 
                 # if we've decided to send a transaction anyway, and we have room, we
@@ -269,11 +273,9 @@ class PerDestinationQueue(object):
 
                 # END CRITICAL SECTION
 
-                acquired_lock = yield make_deferred_yieldable(self._transaction_manager.limiter.acquire())
                 success = yield self._transaction_manager.send_new_transaction(
                     self._destination, pending_pdus, pending_edus
                 )
-                acquired_lock = acquired_lock.release()
 
                 if success:
                     sent_transactions_counter.inc()
@@ -300,6 +302,9 @@ class PerDestinationQueue(object):
                     self._last_device_list_stream_id = dev_list_id
                 else:
                     break
+
+                # Release the lock after all the work is done
+                acquired_lock = acquired_lock.release()
         except NotRetryingDestination as e:
             logger.debug(
                 "TX [%s] not ready for retry yet (next retry at %s) - "
