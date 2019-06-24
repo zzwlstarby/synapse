@@ -263,7 +263,6 @@ class PerDestinationQueue(object):
                 if not pending_pdus and not pending_edus:
                     logger.debug("TX [%s] Nothing to send", self._destination)
                     self._last_device_stream_id = device_stream_id
-                    acquired_lock = acquired_lock.release()
                     return
 
                 # if we've decided to send a transaction anyway, and we have room, we
