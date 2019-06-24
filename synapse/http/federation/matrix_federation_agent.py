@@ -107,7 +107,6 @@ class MatrixFederationAgent(object):
             Agent(self._reactor, pool=self._pool, **agent_args)
         )
         self._well_known_agent = _well_known_agent
-        self._well_known_limiter = defer.DeferredSemaphore(50)
 
         # our cache of .well-known lookup results, mapping from server name
         # to delegated name. The values can be:
@@ -307,9 +306,6 @@ class MatrixFederationAgent(object):
         try:
             result = self._well_known_cache[server_name]
         except KeyError:
-
-            yield make_deferred_yieldable(self._well_known_limiter.acquire())
-
             # TODO: should we linearise so that we don't end up doing two .well-known
             # requests for the same server in parallel?
             with Measure(self._clock, "get_well_known"):
@@ -317,8 +313,6 @@ class MatrixFederationAgent(object):
 
             if cache_period > 0:
                 self._well_known_cache.set(server_name, result, cache_period)
-
-            self._well_known_limiter.release()
 
         defer.returnValue(result)
 
