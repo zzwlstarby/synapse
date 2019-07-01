@@ -57,6 +57,10 @@ class QuieterFileBodyProducer(FileBodyProducer):
     """
 
     def stopProducing(self):
+        if not hasattr(self, "_task"):
+            # We haven't started producing yet
+            return
+
         try:
             FileBodyProducer.stopProducing(self)
         except task.TaskStopped:
