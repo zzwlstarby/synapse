@@ -22,6 +22,7 @@ from io import BytesIO
 from OpenSSL import SSL
 
 from six import PY3, raise_from, string_types
+from service_identity.exceptions import VerificationError
 from six.moves import urllib
 
 import attr
@@ -38,6 +39,7 @@ from twisted.internet.error import (
     ConnectionRefusedError,
     DNSLookupError,
     TimeoutError,
+    ConnectingCancelledError,
 )
 from twisted.internet.interfaces import IReactorPluggableNameResolver
 from twisted.internet.task import _EPSILON, Cooperator
@@ -433,7 +435,7 @@ class MatrixFederationHttpClient(object):
                         for i in e.reasons:
                             # If it's an OpenSSL error, they probably don't have
                             # a valid certificate or something else very bad went on.
-                            if i.check(SSL.Error):
+                            if i.check(SSL.Error) or i.check(VerificationError):
                                 if self.backoff_settings.invalid_tls:
                                     raise_from(RequestSendFailed(e, can_retry=False), e)
 
@@ -446,7 +448,7 @@ class MatrixFederationHttpClient(object):
                         logger.info("Failed to send request: %s", e)
                         raise_from(RequestSendFailed(e, can_retry=True), e)
 
-                    except TimeoutError as e:
+                    except (TimeoutError, ConnectingCancelledError) as e:
                         # Handle timeouts
                         if self.backoff_settings.on_timeout:
                             raise_from(RequestSendFailed(e, can_retry=False), e)
