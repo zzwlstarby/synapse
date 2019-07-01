@@ -18,6 +18,7 @@
 import logging
 import os.path
 
+import attr
 from netaddr import IPSet
 
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
@@ -40,7 +41,7 @@ DEFAULT_ROOM_VERSION = "4"
 
 
 class ServerConfig(Config):
-    def read_config(self, config):
+    def read_config(self, config, **kwargs):
         self.server_name = config["server_name"]
         self.server_context = config.get("server_context", None)
 
@@ -82,12 +83,32 @@ class ServerConfig(Config):
             "require_auth_for_profile_requests", False
         )
 
-        # If set to 'True', requires authentication to access the server's
-        # public rooms directory through the client API, and forbids any other
-        # homeserver to fetch it via federation.
-        self.restrict_public_rooms_to_local_users = config.get(
-            "restrict_public_rooms_to_local_users", False
-        )
+        if "restrict_public_rooms_to_local_users" in config and (
+            "allow_public_rooms_without_auth" in config
+            or "allow_public_rooms_over_federation" in config
+        ):
+            raise ConfigError(
+                "Can't use 'restrict_public_rooms_to_local_users' if"
+                " 'allow_public_rooms_without_auth' and/or"
+                " 'allow_public_rooms_over_federation' is set."
+            )
+
+        # Check if the legacy "restrict_public_rooms_to_local_users" flag is set. This
+        # flag is now obsolete but we need to check it for backward-compatibility.
+        if config.get("restrict_public_rooms_to_local_users", False):
+            self.allow_public_rooms_without_auth = False
+            self.allow_public_rooms_over_federation = False
+        else:
+            # If set to 'False', requires authentication to access the server's public
+            # rooms directory through the client API. Defaults to 'True'.
+            self.allow_public_rooms_without_auth = config.get(
+                "allow_public_rooms_without_auth", True
+            )
+            # If set to 'False', forbids any other homeserver to fetch the server's public
+            # rooms directory via federation. Defaults to 'True'.
+            self.allow_public_rooms_over_federation = config.get(
+                "allow_public_rooms_over_federation", True
+            )
 
         default_room_version = config.get("default_room_version", DEFAULT_ROOM_VERSION)
 
@@ -304,10 +325,29 @@ class ServerConfig(Config):
             "cleanup_extremities_with_dummy_events", False
         )
 
+        @attr.s
+        class FederationBackoffSettings(object):
+            dns_resolution = attr.ib(default=False, type=bool)
+            dns_servfail = attr.ib(default=False, type=bool)
+            no_route_to_host = attr.ib(default=False, type=bool)
+            refused_connection = attr.ib(default=False, type=bool)
+            cannot_assign_address = attr.ib(default=False, type=bool)
+            timeout_amount = attr.ib(default=60, type=int)
+            on_timeout = attr.ib(default=False, type=bool)
+            invalid_tls = attr.ib(default=True, type=bool)
+
+        federation_backoff_settings = config.get("federation_backoff", {})
+
+        self.federation_backoff_settings = FederationBackoffSettings(
+            **federation_backoff_settings
+        )
+
     def has_tls_listener(self):
         return any(l["tls"] for l in self.listeners)
 
-    def default_config(self, server_name, data_dir_path, **kwargs):
+    def generate_config_section(
+        self, server_name, data_dir_path, open_private_ports, **kwargs
+    ):
         _, bind_port = parse_and_validate_server_name(server_name)
         if bind_port is not None:
             unsecure_port = bind_port - 400
@@ -320,6 +360,13 @@ class ServerConfig(Config):
         # Bring DEFAULT_ROOM_VERSION into the local-scope for use in the
         # default config string
         default_room_version = DEFAULT_ROOM_VERSION
+
+        unsecure_http_binding = "port: %i\n            tls: false" % (unsecure_port,)
+        if not open_private_ports:
+            unsecure_http_binding += (
+                "\n            bind_addresses: ['::1', '127.0.0.1']"
+            )
+
         return (
             """\
         ## Server ##
@@ -366,11 +413,15 @@ class ServerConfig(Config):
         #
         #require_auth_for_profile_requests: true
 
-        # If set to 'true', requires authentication to access the server's
-        # public rooms directory through the client API, and forbids any other
-        # homeserver to fetch it via federation. Defaults to 'false'.
+        # If set to 'false', requires authentication to access the server's public rooms
+        # directory through the client API. Defaults to 'true'.
         #
-        #restrict_public_rooms_to_local_users: true
+        #allow_public_rooms_without_auth: false
+
+        # If set to 'false', forbids any other homeserver to fetch the server's public
+        # rooms directory via federation. Defaults to 'true'.
+        #
+        #allow_public_rooms_over_federation: false
 
         # The default room version for newly created rooms.
         #
@@ -511,9 +562,7 @@ class ServerConfig(Config):
           # If you plan to use a reverse proxy, please see
           # https://github.com/matrix-org/synapse/blob/master/docs/reverse_proxy.rst.
           #
-          - port: %(unsecure_port)s
-            tls: false
-            bind_addresses: ['::1', '127.0.0.1']
+          - %(unsecure_http_binding)s
             type: http
             x_forwarded: true
 
@@ -521,7 +570,7 @@ class ServerConfig(Config):
               - names: [client, federation]
                 compress: false
 
-            # example additonal_resources:
+            # example additional_resources:
             #
             #additional_resources:
             #  "/_matrix/my/custom/endpoint":

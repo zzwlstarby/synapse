@@ -29,12 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 class AppServiceConfig(Config):
-    def read_config(self, config):
+    def read_config(self, config, **kwargs):
         self.app_service_config_files = config.get("app_service_config_files", [])
         self.notify_appservices = config.get("notify_appservices", True)
         self.track_appservice_user_ips = config.get("track_appservice_user_ips", False)
 
-    def default_config(cls, **kwargs):
+    def generate_config_section(cls, **kwargs):
         return """\
         # A list of application service config files to use
         #

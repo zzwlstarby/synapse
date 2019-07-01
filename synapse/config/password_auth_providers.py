@@ -21,7 +21,7 @@ LDAP_PROVIDER = "ldap_auth_provider.LdapAuthProvider"
 
 
 class PasswordAuthProviderConfig(Config):
-    def read_config(self, config):
+    def read_config(self, config, **kwargs):
         self.password_providers = []
         providers = []
 
@@ -46,7 +46,7 @@ class PasswordAuthProviderConfig(Config):
 
             self.password_providers.append((provider_class, provider_config))
 
-    def default_config(self, **kwargs):
+    def generate_config_section(self, **kwargs):
         return """\
         #password_providers:
         #    - module: "ldap_auth_provider.LdapAuthProvider"

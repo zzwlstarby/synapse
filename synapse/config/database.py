@@ -18,7 +18,7 @@ from ._base import Config
 
 
 class DatabaseConfig(Config):
-    def read_config(self, config):
+    def read_config(self, config, **kwargs):
         self.event_cache_size = self.parse_size(config.get("event_cache_size", "10K"))
 
         self.database_config = config.get("database")
@@ -38,7 +38,7 @@ class DatabaseConfig(Config):
 
         self.set_databasepath(config.get("database_path"))
 
-    def default_config(self, data_dir_path, **kwargs):
+    def generate_config_section(self, data_dir_path, **kwargs):
         database_path = os.path.join(data_dir_path, "homeserver.db")
         return (
             """\

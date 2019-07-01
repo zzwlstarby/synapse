@@ -17,7 +17,7 @@ from ._base import Config, ConfigError
 
 
 class SAML2Config(Config):
-    def read_config(self, config):
+    def read_config(self, config, **kwargs):
         self.saml2_enabled = False
 
         saml2_config = config.get("saml2_config")
@@ -61,7 +61,7 @@ class SAML2Config(Config):
             },
         }
 
-    def default_config(self, config_dir_path, server_name, **kwargs):
+    def generate_config_section(self, config_dir_path, server_name, **kwargs):
         return """\
         # Enable SAML2 for registration and login. Uses pysaml2.
         #

@@ -46,7 +46,7 @@ class AccountValidityConfig(Config):
 
 
 class RegistrationConfig(Config):
-    def read_config(self, config):
+    def read_config(self, config, **kwargs):
         self.enable_registration = bool(
             strtobool(str(config.get("enable_registration", False)))
         )
@@ -85,7 +85,7 @@ class RegistrationConfig(Config):
             "disable_msisdn_registration", False
         )
 
-    def default_config(self, generate_secrets=False, **kwargs):
+    def generate_config_section(self, generate_secrets=False, **kwargs):
         if generate_secrets:
             registration_shared_secret = 'registration_shared_secret: "%s"' % (
                 random_string_with_symbols(50),

@@ -54,11 +54,15 @@ pid_file: DATADIR/homeserver.pid
 #
 #require_auth_for_profile_requests: true
 
-# If set to 'true', requires authentication to access the server's
-# public rooms directory through the client API, and forbids any other
-# homeserver to fetch it via federation. Defaults to 'false'.
+# If set to 'false', requires authentication to access the server's public rooms
+# directory through the client API. Defaults to 'true'.
 #
-#restrict_public_rooms_to_local_users: true
+#allow_public_rooms_without_auth: false
+
+# If set to 'false', forbids any other homeserver to fetch the server's public
+# rooms directory via federation. Defaults to 'true'.
+#
+#allow_public_rooms_over_federation: false
 
 # The default room version for newly created rooms.
 #
@@ -209,7 +213,7 @@ listeners:
       - names: [client, federation]
         compress: false
 
-    # example additonal_resources:
+    # example additional_resources:
     #
     #additional_resources:
     #  "/_matrix/my/custom/endpoint":
@@ -401,6 +405,13 @@ acme:
     # If not set, defaults to your 'server_name'.
     #
     #domain: matrix.example.com
+
+    # file to use for the account key. This will be generated if it doesn't
+    # exist.
+    #
+    # If unspecified, we will use CONFDIR/client.key.
+    #
+    account_key_file: DATADIR/acme_account.key
 
 # List of allowed TLS fingerprints for this server to publish along
 # with the signing keys for this server. Other matrix servers that

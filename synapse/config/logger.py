@@ -74,13 +74,13 @@ root:
 
 
 class LoggingConfig(Config):
-    def read_config(self, config):
+    def read_config(self, config, **kwargs):
         self.verbosity = config.get("verbose", 0)
         self.no_redirect_stdio = config.get("no_redirect_stdio", False)
         self.log_config = self.abspath(config.get("log_config"))
         self.log_file = self.abspath(config.get("log_file"))
 
-    def default_config(self, config_dir_path, server_name, **kwargs):
+    def generate_config_section(self, config_dir_path, server_name, **kwargs):
         log_config = os.path.join(config_dir_path, server_name + ".log.config")
         return (
             """\
@@ -133,7 +133,7 @@ class LoggingConfig(Config):
             help="Do not redirect stdout/stderr to the log",
         )
 
-    def generate_files(self, config):
+    def generate_files(self, config, config_dir_path):
         log_config = config.get("log_config")
         if log_config and not os.path.exists(log_config):
             log_file = self.abspath("homeserver.log")

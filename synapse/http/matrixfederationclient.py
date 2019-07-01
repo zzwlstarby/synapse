@@ -31,12 +31,22 @@ from prometheus_client import Counter
 from signedjson.sign import sign_json
 from zope.interface import implementer
 
-from twisted.names.error import DNSServerError
+from OpenSSL import SSL
 from twisted.internet import defer, protocol
-from twisted.internet.error import DNSLookupError, ConnectError, ConnectionRefusedError
+from twisted.internet.error import (
+    ConnectError,
+    ConnectionRefusedError,
+    DNSLookupError,
+    TimeoutError,
+)
 from twisted.internet.interfaces import IReactorPluggableNameResolver
 from twisted.internet.task import _EPSILON, Cooperator
-from twisted.web._newclient import ResponseDone, RequestTransmissionFailed, ResponseNeverReceived
+from twisted.names.error import DNSServerError
+from twisted.web._newclient import (
+    RequestTransmissionFailed,
+    ResponseDone,
+    ResponseNeverReceived,
+)
 from twisted.web.http_headers import Headers
 
 import synapse.metrics
@@ -176,6 +186,7 @@ class MatrixFederationHttpClient(object):
         self.hs = hs
         self.signing_key = hs.config.signing_key[0]
         self.server_name = hs.hostname
+        self.backoff_settings = hs.config.federation_backoff_settings
 
         real_reactor = hs.get_reactor()
 
@@ -208,7 +219,7 @@ class MatrixFederationHttpClient(object):
         self.clock = hs.get_clock()
         self._store = hs.get_datastore()
         self.version_string_bytes = hs.version_string.encode("ascii")
-        self.default_timeout = 60
+        self.default_timeout = self.backoff_settings.timeout_amount
 
         def schedule(x):
             self.reactor.callLater(_EPSILON, x)
@@ -412,30 +423,56 @@ class MatrixFederationHttpClient(object):
                         raise_from(RequestSendFailed(e, can_retry=retry_on_dns_fail), e)
                     except DNSServerError as e:
                         # Their domain's nameserver is busted and can't give us a result
-                        raise_from(RequestSendFailed(e, can_retry=retry_on_dns_fail), e)
-                    except (ConnectError, ConnectionRefusedError) as e:
-                        if e.osError == 113:
-                            # No route to host -- they're gone
-                            raise_from(RequestSendFailed(e, can_retry=False), e)
-                        elif e.osError == 111:
-                            # Refused connection -- they're gone
-                            raise_from(RequestSendFailed(e, can_retry=False), e)
-                        elif e.osError == 99:
-                            # Cannot assign address -- don't try?
-                            raise_from(RequestSendFailed(e, can_retry=False), e)
-
-                        # Some other socket error, try retrying
-                        logger.info("Failed to send request due to socket error: %s", e)
-                        raise_from(RequestSendFailed(e, can_retry=True), e)
-
+                        raise_from(
+                            RequestSendFailed(
+                                e, can_retry=not self.backoff_settings.dns_servfail
+                            ),
+                            e,
+                        )
                     except (RequestTransmissionFailed, ResponseNeverReceived) as e:
                         for i in e.reasons:
                             # If it's an OpenSSL error, they probably don't have
                             # a valid certificate or something else very bad went on.
-                            if i.trap(SSL.Error):
-                                raise_from(RequestSendFailed(e, can_retry=False), e)
+                            if i.check(SSL.Error):
+                                if self.backoff_settings.invalid_tls:
+                                    raise_from(RequestSendFailed(e, can_retry=False), e)
+
+                            elif i.check(TimeoutError, defer.CancelledError):
+                                # If we backoff hard on timeout, raise it here.
+                                if self.backoff_settings.on_timeout:
+                                    raise_from(RequestSendFailed(e, can_retry=False), e)
 
                         # If it's not that, raise it normally.
+                        logger.info("Failed to send request: %s", e)
+                        raise_from(RequestSendFailed(e, can_retry=True), e)
+
+                    except TimeoutError as e:
+                        # Handle timeouts
+                        if self.backoff_settings.on_timeout:
+                            raise_from(RequestSendFailed(e, can_retry=False), e)
+
+                        # If it's not that, raise it normally.
+                        logger.info("Failed to send request: %s", e)
+                        raise_from(RequestSendFailed(e, can_retry=True), e)
+
+                    except (ConnectError, ConnectionRefusedError) as e:
+                        if e.osError == 113 and self.backoff_settings.no_route_to_host:
+                            # No route to host -- they're gone
+                            raise_from(RequestSendFailed(e, can_retry=False), e)
+                        elif (
+                            e.osError == 111
+                            and self.backoff_settings.refused_connection
+                        ):
+                            # Refused connection -- they're gone
+                            raise_from(RequestSendFailed(e, can_retry=False), e)
+                        elif (
+                            e.osError == 99
+                            and self.backoff_settings.cannot_assign_address
+                        ):
+                            # Cannot assign address -- don't try?
+                            raise_from(RequestSendFailed(e, can_retry=False), e)
+
+                        # Some other socket error, try retrying
                         logger.info("Failed to send request: %s", e)
                         raise_from(RequestSendFailed(e, can_retry=True), e)
 
