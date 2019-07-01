@@ -477,7 +477,7 @@ class MatrixFederationHttpClient(object):
                         raise_from(RequestSendFailed(e, can_retry=True), e)
 
                     except Exception as e:
-                        logger.info("Failed to send request: %s", e)
+                        logger.info("Failed to send request for unhandled reason: %s", e)
                         raise_from(RequestSendFailed(e, can_retry=True), e)
 
                     logger.info(
@@ -525,9 +525,10 @@ class MatrixFederationHttpClient(object):
                     break
                 except RequestSendFailed as e:
                     logger.warn(
-                        "{%s} [%s] Request failed: %s %s: %s",
+                        "{%s} [%s] Request failed, %s - %s: %s %s: %s",
                         request.txn_id,
                         request.destination,
+                        "retrying" if e.can_retry else "not retrying",
                         request.method,
                         url_str,
                         _flatten_response_never_received(e.inner_exception),
