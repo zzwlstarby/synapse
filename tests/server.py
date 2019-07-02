@@ -205,6 +205,7 @@ def wait_until_result(clock, request, timeout=100):
 
         # If there's a producer, tell it to resume producing so we get content
         if request._channel._producer:
+            print(request._channel._producer)
             request._channel._producer.resumeProducing()
 
         x += 1
