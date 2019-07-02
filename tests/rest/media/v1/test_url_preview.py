@@ -25,7 +25,7 @@ from twisted.test.proto_helpers import AccumulatingProtocol
 from twisted.web._newclient import ResponseDone
 
 from tests import unittest
-from tests.server import FakeTransport
+from tests.server import FakeTransport, wait_until_result
 
 
 @attr.s
@@ -143,7 +143,7 @@ class URLPreviewTests(unittest.HomeserverTestCase):
             + self.end_content
         )
 
-        self.pump()
+        wait_until_result(self.reactor, request)
         self.assertEqual(channel.code, 200)
         self.assertEqual(
             channel.json_body, {"og:title": "~matrix~", "og:description": "hi"}
@@ -154,9 +154,9 @@ class URLPreviewTests(unittest.HomeserverTestCase):
             "GET", "url_preview?url=http://matrix.org", shorthand=False
         )
         request.render(self.preview_url)
-        self.pump()
 
         # Check the cache response has the same content
+        wait_until_result(self.reactor, request)
         self.assertEqual(channel.code, 200)
         self.assertEqual(
             channel.json_body, {"og:title": "~matrix~", "og:description": "hi"}
@@ -172,9 +172,9 @@ class URLPreviewTests(unittest.HomeserverTestCase):
             "GET", "url_preview?url=http://matrix.org", shorthand=False
         )
         request.render(self.preview_url)
-        self.pump()
 
         # Check the cache response has the same content
+        wait_until_result(self.reactor, request)
         self.assertEqual(channel.code, 200)
         self.assertEqual(
             channel.json_body, {"og:title": "~matrix~", "og:description": "hi"}
