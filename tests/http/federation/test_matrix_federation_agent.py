@@ -36,6 +36,7 @@ from synapse.http.federation.matrix_federation_agent import (
     _cache_period_from_headers,
 )
 from synapse.http.federation.srv_resolver import Server
+from synapse.util.async_helpers import timeout_deferred
 from synapse.util.caches.ttlcache import TTLCache
 from synapse.util.logcontext import LoggingContext
 
@@ -130,11 +131,12 @@ class MatrixFederationAgentTests(TestCase):
         return server_tls_protocol.wrappedProtocol
 
     @defer.inlineCallbacks
-    def _make_get_request(self, uri):
+    def _make_get_request(self, uri, timeout=None):
         """
         Sends a simple GET request via the agent, and checks its logcontext management
         """
         with LoggingContext("one") as context:
+            context.request = "one"
             fetch_d = self.agent.request(b"GET", uri)
 
             # Nothing happened yet
@@ -142,6 +144,18 @@ class MatrixFederationAgentTests(TestCase):
 
             # should have reset logcontext to the sentinel
             _check_logcontext(LoggingContext.sentinel)
+
+            def cb(res, name):
+                logger.info("cb %s", name)
+                return res
+
+            fetch_d.addBoth(cb, "orig")
+
+            if timeout is not None:
+                fetch_d = timeout_deferred(
+                    fetch_d, timeout=timeout, reactor=self.reactor
+                )
+            fetch_d.addBoth(cb, "timingout")
 
             try:
                 fetch_res = yield fetch_d
@@ -727,6 +741,33 @@ class MatrixFederationAgentTests(TestCase):
             b"_matrix._tcp.testserv"
         )
 
+    def test_get_well_known_timeout(self):
+        """Test the behaviour when the .well-known request is cancelled
+        """
+        self.mock_resolver.resolve_service.side_effect = lambda _: []
+        self.reactor.lookups["testserv"] = "1.2.3.4"
+
+        test_d = self._make_get_request(b"matrix://testserv/foo/bar", timeout=5)
+
+        # Nothing happened yet
+        self.assertNoResult(test_d)
+
+        # No SRV record lookup yet
+        self.mock_resolver.resolve_service.assert_not_called()
+
+        # there should be an attempt to connect on port 443 for the .well-known
+        clients = self.reactor.tcpClients
+        self.assertEqual(len(clients), 1)
+        (host, port, client_factory, _timeout, _bindAddress) = clients.pop()
+        self.assertEqual(host, "1.2.3.4")
+        self.assertEqual(port, 443)
+
+        # ... time passes
+        self.reactor.pump((5,))
+
+        # ... and the request should be cancelled.
+        self.failureResultOf(test_d, defer.TimeoutError)
+
     def test_get_hostname_srv(self):
         """
         Test the behaviour when there is a single SRV record
@@ -1057,6 +1098,7 @@ class TestCachePeriodFromHeaders(TestCase):
 def _check_logcontext(context):
     current = LoggingContext.current_context()
     if current is not context:
+        logger.warning("Lost logcontext %s", context)
         raise AssertionError("Expected logcontext %s but was %s" % (context, current))
 
 
