@@ -22,8 +22,6 @@ import sys
 import traceback
 from io import BytesIO
 
-from OpenSSL import SSL
-
 from six import PY3, raise_from, string_types
 from six.moves import urllib
 

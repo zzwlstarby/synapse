@@ -19,11 +19,11 @@ from twisted.internet import defer
 from synapse.api.errors import HttpResponseException
 from synapse.federation.persistence import TransactionActions
 from synapse.federation.units import Transaction
+from synapse.metrics import LaterGauge
 from synapse.util.metrics import measure_func
 
 logger = logging.getLogger(__name__)
 
-from synapse.metrics import LaterGauge
 
 
 class TransactionManager(object):

@@ -30,8 +30,8 @@ from synapse.federation.units import Edu
 from synapse.handlers.presence import format_user_presence_state
 from synapse.metrics import sent_transactions_counter
 from synapse.metrics.background_process_metrics import run_as_background_process
-from synapse.util.logcontext import make_deferred_yieldable
 from synapse.storage import UserPresenceState
+from synapse.util.logcontext import make_deferred_yieldable
 from synapse.util.retryutils import NotRetryingDestination, get_retry_limiter
 
 # This is defined in the Matrix spec and enforced by the receiver.
@@ -206,7 +206,9 @@ class PerDestinationQueue(object):
                 )
 
                 # Lock before we start doing work
-                acquired_lock = yield make_deferred_yieldable(self._transaction_manager.limiter.acquire())
+                acquired_lock = yield make_deferred_yieldable(
+                    self._transaction_manager.limiter.acquire()
+                )
 
                 pending_edus = device_update_edus + to_device_edus
 
