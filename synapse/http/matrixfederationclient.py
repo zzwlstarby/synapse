@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright 2014-2016 OpenMarket Ltd
 # Copyright 2018 New Vector Ltd
+# Copyright 2019 Matrix.org Foundation C.I.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,22 +14,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import cgi
 import logging
 import random
 import sys
+import traceback
 from io import BytesIO
 
 from OpenSSL import SSL
 
 from six import PY3, raise_from, string_types
-from service_identity.exceptions import VerificationError
 from six.moves import urllib
 
 import attr
 import treq
 from canonicaljson import encode_canonical_json
 from prometheus_client import Counter
+from service_identity.exceptions import VerificationError
 from signedjson.sign import sign_json
 from zope.interface import implementer
 
@@ -36,10 +39,10 @@ from OpenSSL import SSL
 from twisted.internet import defer, protocol
 from twisted.internet.error import (
     ConnectError,
+    ConnectingCancelledError,
     ConnectionRefusedError,
     DNSLookupError,
     TimeoutError,
-    ConnectingCancelledError,
 )
 from twisted.internet.interfaces import IReactorPluggableNameResolver
 from twisted.internet.task import _EPSILON, Cooperator
@@ -175,6 +178,19 @@ def _handle_json_response(reactor, timeout_sec, request, response):
     defer.returnValue(body)
 
 
+@implementer(IReactorPluggableNameResolver)
+@attr.s
+class _Reactor(object):
+    real_reactor = attr.ib()
+    nameResolver = attr.ib()
+
+    def __getattr__(self, attr):
+        if attr == "nameResolver":
+            return self.nameResolver
+        else:
+            return getattr(self.real_reactor, attr)
+
+
 class MatrixFederationHttpClient(object):
     """HTTP client used to talk to other homeservers over the federation
     protocol. Send client certificates and signs requests.
@@ -184,49 +200,43 @@ class MatrixFederationHttpClient(object):
             requests.
     """
 
-    def __init__(self, hs, tls_client_options_factory):
+    def __init__(self, hs):
         self.hs = hs
-        self.signing_key = hs.config.signing_key[0]
-        self.server_name = hs.hostname
-        self.backoff_settings = hs.config.federation_backoff_settings
+        self.server_name = self.hs.hostname
+        self.version_string_bytes = hs.version_string.encode("ascii")
 
-        real_reactor = hs.get_reactor()
+        self._real_reactor = hs.get_reactor()
+        self.clock = hs.get_clock()
+        self._store = hs.get_datastore()
+        self._cooperator = Cooperator(
+            scheduler=lambda x: self.reactor.callLater(_EPSILON, x)
+        )
+
+        self.reload_config()
+
+    def reload_config(self):
+        self.signing_key = self.hs.config.signing_key[0]
 
         # We need to use a DNS resolver which filters out blacklisted IP
         # addresses, to prevent DNS rebinding.
         nameResolver = IPBlacklistingResolver(
-            real_reactor, None, hs.config.federation_ip_range_blacklist
+            self._real_reactor, None, self.hs.config.federation_ip_range_blacklist
         )
+        self.reactor = _Reactor(self._real_reactor, nameResolver)
 
-        @implementer(IReactorPluggableNameResolver)
-        class Reactor(object):
-            def __getattr__(_self, attr):
-                if attr == "nameResolver":
-                    return nameResolver
-                else:
-                    return getattr(real_reactor, attr)
-
-        self.reactor = Reactor()
-
-        self.agent = MatrixFederationAgent(self.reactor, tls_client_options_factory)
+        self.agent = MatrixFederationAgent(
+            self.reactor, self.hs.get_client_tls_options()
+        )
 
         # Use a BlacklistingAgentWrapper to prevent circumventing the IP
         # blacklist via IP literals in server names
         self.agent = BlacklistingAgentWrapper(
             self.agent,
             self.reactor,
-            ip_blacklist=hs.config.federation_ip_range_blacklist,
+            ip_blacklist=self.hs.config.federation_ip_range_blacklist,
         )
 
-        self.clock = hs.get_clock()
-        self._store = hs.get_datastore()
-        self.version_string_bytes = hs.version_string.encode("ascii")
-        self.default_timeout = self.backoff_settings.timeout_amount
-
-        def schedule(x):
-            self.reactor.callLater(_EPSILON, x)
-
-        self._cooperator = Cooperator(scheduler=schedule)
+        self.backoff_settings = self.hs.config.federation_backoff_settings
 
     @defer.inlineCallbacks
     def _send_request_with_optional_trailing_slash(
@@ -331,7 +341,7 @@ class MatrixFederationHttpClient(object):
         if timeout:
             _sec_timeout = timeout / 1000
         else:
-            _sec_timeout = self.default_timeout
+            _sec_timeout = self.backoff_settings.timeout_amount / 1000
 
         if (
             self.hs.config.federation_domain_whitelist is not None
@@ -479,7 +489,10 @@ class MatrixFederationHttpClient(object):
                         raise_from(RequestSendFailed(e, can_retry=True), e)
 
                     except Exception as e:
-                        logger.info("Failed to send request for unhandled reason: %s", e)
+                        logger.info(
+                            "Failed to send request for unhandled reason: %s", e
+                        )
+                        logger.debug(traceback.format_exc())
                         raise_from(RequestSendFailed(e, can_retry=True), e)
 
                     logger.info(
@@ -648,7 +661,7 @@ class MatrixFederationHttpClient(object):
 
             timeout (int|None): number of milliseconds to wait for the response headers
                 (including connecting to the server), *for each attempt*.
-                self._default_timeout (60s) by default.
+                self.backoff_settings.timeout_amount (60s) by default.
 
             ignore_backoff (bool): true to ignore the historical backoff data
                 and try the request anyway.
@@ -695,7 +708,7 @@ class MatrixFederationHttpClient(object):
         )
 
         body = yield _handle_json_response(
-            self.reactor, self.default_timeout, request, response
+            self.reactor, self.backoff_settings.timeout_amount, request, response
         )
 
         defer.returnValue(body)
@@ -727,7 +740,7 @@ class MatrixFederationHttpClient(object):
 
             timeout (int|None): number of milliseconds to wait for the response headers
                 (including connecting to the server), *for each attempt*.
-                self._default_timeout (60s) by default.
+                self.backoff_settings.timeout_amount (60s) by default.
 
             ignore_backoff (bool): true to ignore the historical backoff data and
                 try the request anyway.
@@ -762,7 +775,7 @@ class MatrixFederationHttpClient(object):
         if timeout:
             _sec_timeout = timeout / 1000
         else:
-            _sec_timeout = self.default_timeout
+            _sec_timeout = self.backoff_settings.timeout_amount / 1000
 
         body = yield _handle_json_response(
             self.reactor, _sec_timeout, request, response
@@ -793,7 +806,7 @@ class MatrixFederationHttpClient(object):
 
             timeout (int|None): number of milliseconds to wait for the response headers
                 (including connecting to the server), *for each attempt*.
-                self._default_timeout (60s) by default.
+                self.backoff_settings.timeout_amount (60s) by default.
 
             ignore_backoff (bool): true to ignore the historical backoff data
                 and try the request anyway.
@@ -829,7 +842,7 @@ class MatrixFederationHttpClient(object):
         )
 
         body = yield _handle_json_response(
-            self.reactor, self.default_timeout, request, response
+            self.reactor, self.backoff_settings.timeout_amount, request, response
         )
 
         defer.returnValue(body)
@@ -856,7 +869,7 @@ class MatrixFederationHttpClient(object):
 
             timeout (int|None): number of milliseconds to wait for the response headers
                 (including connecting to the server), *for each attempt*.
-                self._default_timeout (60s) by default.
+                self.backoff_settings.timeout_amount (60s) by default.
 
             ignore_backoff (bool): true to ignore the historical backoff data and
                 try the request anyway.
@@ -888,7 +901,7 @@ class MatrixFederationHttpClient(object):
         )
 
         body = yield _handle_json_response(
-            self.reactor, self.default_timeout, request, response
+            self.reactor, self.backoff_settings.timeout_amount, request, response
         )
         defer.returnValue(body)
 
@@ -938,7 +951,7 @@ class MatrixFederationHttpClient(object):
 
         try:
             d = _readBodyToFile(response, output_stream, max_size)
-            d.addTimeout(self.default_timeout, self.reactor)
+            d.addTimeout(self.backoff_settings.timeout_amount, self.reactor)
             length = yield make_deferred_yieldable(d)
         except Exception as e:
             logger.warn(

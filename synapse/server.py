@@ -401,10 +401,7 @@ class HomeServer(object):
         return PusherPool(self)
 
     def build_http_client(self):
-        tls_client_options_factory = context_factory.ClientTLSOptionsFactory(
-            self.config
-        )
-        return MatrixFederationHttpClient(self, tls_client_options_factory)
+        return MatrixFederationHttpClient(self)
 
     def build_db_pool(self):
         name = self.db_config["name"]
@@ -412,6 +409,9 @@ class HomeServer(object):
         return adbapi.ConnectionPool(
             name, cp_reactor=self.get_reactor(), **self.db_config.get("args", {})
         )
+
+    def get_client_tls_options(self):
+        return context_factory.ClientTLSOptionsFactory(self.config)
 
     def get_db_conn(self, run_new_connection=True):
         """Makes a new connection to the database, skipping the db pool
@@ -542,6 +542,26 @@ class HomeServer(object):
             not self.config.worker_app
             or self.config.worker_app == "synapse.app.federation_sender"
         )
+
+    def reload_config(self):
+        """
+        Reload the config of every loaded module.
+        """
+        for depname in self.DEPENDENCIES:
+            try:
+                dep = getattr(self, depname)
+                try:
+                    reloader = getattr(dep, "reload_config")
+                    reloader()
+                    logger.info("Reloaded the config of %s", depname)
+                except AttributeError:
+                    logger.info("Skipping reloading the config of %s", depname)
+                except Exception:
+                    logger.error("Failed reloading the config of %s!", depname)
+                    raise ValueError("Failed reloading the config of %s!" % (depname,))
+            except AttributeError:
+                # Dependency is not loaded yet.
+                pass
 
 
 def _make_dependency_method(depname):

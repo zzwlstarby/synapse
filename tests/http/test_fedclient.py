@@ -15,8 +15,6 @@
 
 from mock import Mock
 
-from netaddr import IPSet
-
 from twisted.internet import defer
 from twisted.internet.defer import TimeoutError
 from twisted.internet.error import ConnectingCancelledError, DNSLookupError
@@ -25,14 +23,11 @@ from twisted.web.client import ResponseNeverReceived
 from twisted.web.http import HTTPChannel
 
 from synapse.api.errors import RequestSendFailed
-from synapse.http.matrixfederationclient import (
-    MatrixFederationHttpClient,
-    MatrixFederationRequest,
-)
+from synapse.http.matrixfederationclient import MatrixFederationRequest
 from synapse.logging.context import LoggingContext
 
+from tests import unittest
 from tests.server import FakeTransport
-from tests.unittest import HomeserverTestCase
 
 
 def check_logcontext(context):
@@ -41,13 +36,13 @@ def check_logcontext(context):
         raise AssertionError("Expected logcontext %s but was %s" % (context, current))
 
 
-class FederationClientTests(HomeserverTestCase):
+class FederationClientTests(unittest.HomeserverTestCase):
     def make_homeserver(self, reactor, clock):
         hs = self.setup_test_homeserver(reactor=reactor, clock=clock)
         return hs
 
     def prepare(self, reactor, clock, homeserver):
-        self.cl = MatrixFederationHttpClient(self.hs, None)
+        self.cl = self.hs.get_http_client()
         self.reactor.lookups["testserv"] = "1.2.3.4"
 
     def test_client_get(self):
@@ -215,18 +210,18 @@ class FederationClientTests(HomeserverTestCase):
         """Ensure that Synapse does not try to connect to blacklisted IPs"""
 
         # Set up the ip_range blacklist
-        self.hs.config.federation_ip_range_blacklist = IPSet(
-            ["127.0.0.0/8", "fe80::/64"]
+
+        self.amend_config(
+            {"federation_ip_range_blacklist": ["127.0.0.0/8", "fe80::/64"]}
         )
         self.reactor.lookups["internal"] = "127.0.0.1"
         self.reactor.lookups["internalv6"] = "fe80:0:0:0:0:8a2e:370:7337"
         self.reactor.lookups["fine"] = "10.20.30.40"
-        cl = MatrixFederationHttpClient(self.hs, None)
 
         # Try making a GET request to a blacklisted IPv4 address
         # ------------------------------------------------------
         # Make the request
-        d = cl.get_json("internal:8008", "foo/bar", timeout=10000)
+        d = self.cl.get_json("internal:8008", "foo/bar", timeout=10000)
 
         # Nothing happened yet
         self.assertNoResult(d)
@@ -244,7 +239,7 @@ class FederationClientTests(HomeserverTestCase):
         # Try making a POST request to a blacklisted IPv6 address
         # -------------------------------------------------------
         # Make the request
-        d = cl.post_json("internalv6:8008", "foo/bar", timeout=10000)
+        d = self.cl.post_json("internalv6:8008", "foo/bar", timeout=10000)
 
         # Nothing has happened yet
         self.assertNoResult(d)
@@ -263,7 +258,7 @@ class FederationClientTests(HomeserverTestCase):
         # Try making a GET request to a non-blacklisted IPv4 address
         # ----------------------------------------------------------
         # Make the request
-        d = cl.post_json("fine:8008", "foo/bar", timeout=10000)
+        d = self.cl.post_json("fine:8008", "foo/bar", timeout=10000)
 
         # Nothing has happened yet
         self.assertNoResult(d)
@@ -489,3 +484,50 @@ class FederationClientTests(HomeserverTestCase):
         self.pump(120)
 
         self.assertTrue(conn.disconnecting)
+
+    def test_client_respects_timeout_backoff(self):
+        """
+        If federation_backoff.on_timeout is set, Synapse will immediately
+        backoff on a timeout.
+        """
+        self.amend_config({"federation_backoff": {"on_timeout": True}})
+
+        d = self.cl.get_json("testserv:8008", "foo/bar")
+
+        # Send the request
+        self.pump()
+
+        # there should have been a call to connectTCP
+        clients = self.reactor.tcpClients
+        self.assertEqual(len(clients), 1)
+        (_host, _port, factory, _timeout, _bindAddress) = clients[0]
+
+        # complete the connection and wire it up to a fake transport
+        client = factory.buildProtocol(None)
+        conn = StringTransport()
+        client.makeConnection(conn)
+
+        # that should have made it send the request to the connection
+        self.assertRegex(conn.value(), b"^GET /foo/bar")
+
+        # Clear the original request data before sending a response
+        conn.clear()
+
+        # No retry interval for this destination.
+        retry_timings = self.get_success(
+            self.hs.get_datastore().get_destination_retry_timings("testserv:8008")
+        )
+        self.assertIsNone(retry_timings)
+
+        # Timeout the connection.
+        self.pump(120)
+
+        # We should get the response failure bubbled up.
+        f = self.failureResultOf(d)
+        self.assertIsNotNone(f.check(RequestSendFailed))
+
+        # Retry in 600s
+        retry_timings = self.get_success(
+            self.hs.get_datastore().get_destination_retry_timings("testserv:8008")
+        )
+        self.assertEqual(retry_timings["retry_interval"], 600000)
