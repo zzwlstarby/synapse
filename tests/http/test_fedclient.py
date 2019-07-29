@@ -63,7 +63,7 @@ class FederationClientTests(unittest.HomeserverTestCase):
 
                 try:
                     fetch_res = yield fetch_d
-                    defer.returnValue(fetch_res)
+                    return fetch_res
                 finally:
                     check_logcontext(context)
 

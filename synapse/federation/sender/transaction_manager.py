@@ -150,4 +150,4 @@ class TransactionManager(object):
                 )
             success = False
 
-        defer.returnValue(success)
+        return success
