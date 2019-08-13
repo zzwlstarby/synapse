@@ -534,6 +534,24 @@ class RoomStateRestServlet(RestServlet):
         return (200, events)
 
 
+class RoomComplexityRestServlet(RestServlet):
+    PATTERNS = client_patterns("/rooms/(?P<room_id>[^/]*)/complexity$", v1=True)
+
+    def __init__(self, hs):
+        super(RoomComplexityRestServlet, self).__init__()
+        self.federation_handler = hs.get_handlers().federation_handler
+        self.auth = hs.get_auth()
+
+    @defer.inlineCallbacks
+    def on_GET(self, request, room_id):
+        requester = yield self.auth.get_user_by_req(request, allow_guest=True)
+        # Get all the current state for this room
+        complexity = yield self.federation_handler.get_room_complexity(
+            ['matrix.org'], room_id
+        )
+        return 200, complexity
+
+
 # TODO: Needs unit testing
 class RoomInitialSyncRestServlet(RestServlet):
     PATTERNS = client_patterns("/rooms/(?P<room_id>[^/]*)/initialSync$", v1=True)
@@ -909,6 +927,7 @@ def register_servlets(hs, http_server):
     JoinedRoomsRestServlet(hs).register(http_server)
     RoomEventServlet(hs).register(http_server)
     RoomEventContextServlet(hs).register(http_server)
+    RoomComplexityRestServlet(hs).register(http_server)
 
 
 def register_deprecated_servlets(hs, http_server):
