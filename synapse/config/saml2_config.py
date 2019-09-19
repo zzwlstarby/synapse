@@ -222,6 +222,8 @@ class SAML2Config(Config):
           # Options include:
           #  * 'hexencode' (which maps unpermitted characters to '=xx')
           #  * 'dotreplace' (which replaces unpermitted characters with '.').
+          #  * 'dotreplace_email_localpart' (truncates at the first '@' and replaces
+          #         unpermitted characters with '.')
           # The default is 'hexencode'.
           #
           #mxid_mapping: dotreplace
@@ -248,7 +250,7 @@ DOT_REPLACE_PATTERN = re.compile(
 )
 
 
-def dot_replace_for_mxid(username: str) -> str:
+def dotreplace_for_mxid(username: str) -> str:
     username = username.lower()
     username = DOT_REPLACE_PATTERN.sub(".", username)
 
@@ -257,7 +259,15 @@ def dot_replace_for_mxid(username: str) -> str:
     return username
 
 
+def dotreplace_email_localpart_for_mxid(username: str) -> str:
+    pos = username.find("@")
+    if pos >= 0:
+        username = username[:pos]
+    return dotreplace_for_mxid(username)
+
+
 MXID_MAPPER_MAP = {
     "hexencode": map_username_to_mxid_localpart,
-    "dotreplace": dot_replace_for_mxid,
+    "dotreplace": dotreplace_for_mxid,
+    "dotreplace_email_localpart": dotreplace_email_localpart_for_mxid,
 }
