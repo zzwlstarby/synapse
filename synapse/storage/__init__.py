@@ -26,6 +26,7 @@ from synapse.storage.user_erasure_store import UserErasureStore
 from synapse.util.caches.stream_change_cache import StreamChangeCache
 
 from .account_data import AccountDataStore
+from .admin import AdminTokenWorkerStore
 from .appservice import ApplicationServiceStore, ApplicationServiceTransactionStore
 from .client_ips import ClientIpStore
 from .deviceinbox import DeviceInboxStore
@@ -105,6 +106,7 @@ class DataStore(
     MonthlyActiveUsersStore,
     StatsStore,
     RelationsStore,
+    AdminTokenWorkerStore,
 ):
     def __init__(self, db_conn, hs):
         self.hs = hs
