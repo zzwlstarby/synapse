@@ -84,8 +84,6 @@ class ShutdownRoomRestServlet(RestServlet):
         " violation will be blocked."
     )
 
-    PERMISSION_CODE = "ROOM_SHUTDOWN"
-
     def __init__(self, hs):
         self.hs = hs
         self.store = hs.get_datastore()
@@ -97,14 +95,9 @@ class ShutdownRoomRestServlet(RestServlet):
 
     async def on_POST(self, request, room_id):
 
-        authorised_by_token = await self.check_authorized_admin_token_in_use(request)
-
-        if authorised_by_token:
-            requester_user_id = self.hs.config.admin_token_user
-        else:
-            requester = await self.auth.get_user_by_req(request)
-            await assert_user_is_admin(self.auth, requester.user)
-            requester_user_id = requester.user.to_string()
+        requester = await self.auth.get_user_by_req(request)
+        await assert_user_is_admin(self.auth, requester.user)
+        requester_user_id = requester.user.to_string()
 
         content = parse_json_object_from_request(request)
         assert_params_in_dict(content, ["new_room_user_id"])
