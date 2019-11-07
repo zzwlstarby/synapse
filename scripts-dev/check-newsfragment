@@ -3,6 +3,8 @@
 # A script which checks that an appropriate news file has been added on this
 # branch.
 
+env
+
 set -e
 
 # make sure that origin/develop is up to date
