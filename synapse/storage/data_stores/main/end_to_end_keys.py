@@ -138,9 +138,9 @@ class EndToEndKeyWorkerStore(SQLBaseStore):
                 result.setdefault(user_id, {})[device_id] = None
 
         # get signatures on the device
-        signature_sql = (
-            "SELECT * " "  FROM e2e_cross_signing_signatures " " WHERE %s"
-        ) % (" OR ".join("(" + q + ")" for q in signature_query_clauses))
+        signature_sql = ("SELECT *  FROM e2e_cross_signing_signatures WHERE %s") % (
+            " OR ".join("(" + q + ")" for q in signature_query_clauses)
+        )
 
         txn.execute(signature_sql, signature_query_params)
         rows = self.cursor_to_dict(txn)
@@ -313,6 +313,30 @@ class EndToEndKeyWorkerStore(SQLBaseStore):
             user_id,
             key_type,
             from_user_id,
+        )
+
+    def get_all_user_signature_changes_for_remotes(self, from_key, to_key):
+        """Return a list of changes from the user signature stream to notify remotes.
+        Note that the user signature stream represents when a user signs their
+        device with their user-signing key, which is not published to other
+        users or servers, so no `destination` is needed in the returned
+        list. However, this is needed to poke workers.
+
+        Args:
+            from_key (int): the stream ID to start at (exclusive)
+            to_key (int): the stream ID to end at (inclusive)
+
+        Returns:
+            Deferred[list[(int,str)]] a list of `(stream_id, user_id)`
+        """
+        sql = """
+            SELECT MAX(stream_id) AS stream_id, from_user_id AS user_id
+            FROM user_signature_stream
+            WHERE ? < stream_id AND stream_id <= ?
+            GROUP BY user_id
+        """
+        return self._execute(
+            "get_all_user_signature_changes_for_remotes", None, sql, from_key, to_key
         )
 
 
