@@ -144,7 +144,7 @@ class FederationBackoffTestCase(unittest.TestCase):
         t = ServerConfig()
         t.read_config(config, config_dir_path="", data_dir_path="")
 
-        fb = t.server.federation_backoff_settings
+        fb = t.federation_backoff_settings
         self.assertEqual(fb.dns_resolution, False)
         self.assertEqual(fb.dns_servfail, False)
         self.assertEqual(fb.no_route_to_host, False)
@@ -174,7 +174,7 @@ class FederationBackoffTestCase(unittest.TestCase):
         t = ServerConfig()
         t.read_config(config, config_dir_path="", data_dir_path="")
 
-        fb = t.server.federation_backoff_settings
+        fb = t.federation_backoff_settings
         self.assertEqual(fb.dns_resolution, True)
         self.assertEqual(fb.dns_servfail, True)
         self.assertEqual(fb.no_route_to_host, True)
@@ -196,5 +196,5 @@ class FederationBackoffTestCase(unittest.TestCase):
         t = ServerConfig()
         t.read_config(config, config_dir_path="", data_dir_path="")
 
-        fb = t.server.federation_backoff_settings
+        fb = t.federation_backoff_settings
         self.assertEqual(fb.timeout_amount, 30001)
