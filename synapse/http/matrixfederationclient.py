@@ -165,7 +165,7 @@ def _handle_json_response(reactor, timeout_sec, request, response):
 
         body = yield make_deferred_yieldable(d)
     except Exception as e:
-        logger.warn(
+        logger.warning(
             "{%s} [%s] Error reading response: %s",
             request.txn_id,
             request.destination,
@@ -240,7 +240,7 @@ class MatrixFederationHttpClient(object):
             ip_blacklist=self.hs.config.federation_ip_range_blacklist,
         )
 
-        self.backoff_settings = self.hs.config.federation_backoff_settings
+        self.backoff_settings = self.hs.config.server.federation_backoff_settings
 
     @defer.inlineCallbacks
     def _send_request_with_optional_trailing_slash(
@@ -539,7 +539,7 @@ class MatrixFederationHttpClient(object):
                         except Exception as e:
                             # Eh, we're already going to raise an exception so lets
                             # ignore if this fails.
-                            logger.warn(
+                            logger.warning(
                                 "{%s} [%s] Failed to get error response: %s %s: %s",
                                 request.txn_id,
                                 request.destination,
@@ -560,7 +560,7 @@ class MatrixFederationHttpClient(object):
 
                     break
                 except RequestSendFailed as e:
-                    logger.warn(
+                    logger.warning(
                         "{%s} [%s] Request failed, %s: %s %s: %s",
                         request.txn_id,
                         request.destination,
@@ -596,7 +596,7 @@ class MatrixFederationHttpClient(object):
                         raise
 
                 except Exception as e:
-                    logger.warn(
+                    logger.warning(
                         "{%s} [%s] Request failed: %s %s: %s",
                         request.txn_id,
                         request.destination,
@@ -613,7 +613,7 @@ class MatrixFederationHttpClient(object):
         """
         Builds the Authorization headers for a federation request
         Args:
-            destination (bytes|None): The desination home server of the request.
+            destination (bytes|None): The desination homeserver of the request.
                 May be None if the destination is an identity server, in which case
                 destination_is must be non-None.
             method (bytes): The HTTP method of the request
@@ -974,7 +974,7 @@ class MatrixFederationHttpClient(object):
             d.addTimeout(self.backoff_settings.timeout_amount, self.reactor)
             length = yield make_deferred_yieldable(d)
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 "{%s} [%s] Error reading response: %s",
                 request.txn_id,
                 request.destination,

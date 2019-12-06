@@ -163,7 +163,7 @@ class TransactionManager(object):
             if code == 200:
                 for e_id, r in response.get("pdus", {}).items():
                     if "error" in r:
-                        logger.warn(
+                        logger.warning(
                             "TX [%s] {%s} Remote returned error for %s: %s",
                             destination,
                             txn_id,
@@ -172,7 +172,7 @@ class TransactionManager(object):
                         )
             else:
                 for p in pdus:
-                    logger.warn(
+                    logger.warning(
                         "TX [%s] {%s} Failed to send event %s",
                         destination,
                         txn_id,

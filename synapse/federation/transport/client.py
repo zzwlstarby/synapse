@@ -37,7 +37,7 @@ class TransportLayerClient(object):
     def __init__(self, hs):
         self.server_name = hs.hostname
         self.client = hs.get_http_client()
-        self.backoff_settings = hs.config.federation_backoff_settings
+        self.backoff_settings = hs.config.server.federation_backoff_settings
 
     @log_function
     def get_room_state(self, destination, room_id, event_id):
@@ -45,7 +45,7 @@ class TransportLayerClient(object):
         given event.
 
         Args:
-            destination (str): The host name of the remote home server we want
+            destination (str): The host name of the remote homeserver we want
                 to get the state from.
             context (str): The name of the context we want the state of
             event_id (str): The event we want the context at.
@@ -69,7 +69,7 @@ class TransportLayerClient(object):
         given event. Returns the state's event_id's
 
         Args:
-            destination (str): The host name of the remote home server we want
+            destination (str): The host name of the remote homeserver we want
                 to get the state from.
             context (str): The name of the context we want the state of
             event_id (str): The event we want the context at.
@@ -92,7 +92,7 @@ class TransportLayerClient(object):
         """ Requests the pdu with give id and origin from the given server.
 
         Args:
-            destination (str): The host name of the remote home server we want
+            destination (str): The host name of the remote homeserver we want
                 to get the state from.
             event_id (str): The id of the event being requested.
             timeout (int): How long to try (in ms) the destination for before
@@ -123,10 +123,10 @@ class TransportLayerClient(object):
             Deferred: Results in a dict received from the remote homeserver.
         """
         logger.debug(
-            "backfill dest=%s, room_id=%s, event_tuples=%s, limit=%s",
+            "backfill dest=%s, room_id=%s, event_tuples=%r, limit=%s",
             destination,
             room_id,
-            repr(event_tuples),
+            event_tuples,
             str(limit),
         )
 
@@ -380,17 +380,6 @@ class TransportLayerClient(object):
         path = _create_v1_path("/event_auth/%s/%s", room_id, event_id)
 
         content = yield self.client.get_json(destination=destination, path=path)
-
-        return content
-
-    @defer.inlineCallbacks
-    @log_function
-    def send_query_auth(self, destination, room_id, event_id, content):
-        path = _create_v1_path("/query_auth/%s/%s", room_id, event_id)
-
-        content = yield self.client.post_json(
-            destination=destination, path=path, data=content
-        )
 
         return content
 
