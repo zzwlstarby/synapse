@@ -33,7 +33,7 @@ class ServerConfigTestCase(unittest.TestCase):
         self.assertFalse(is_threepid_reserved(config, user3))
         self.assertFalse(is_threepid_reserved(config, user1_msisdn))
 
-     def test_unsecure_listener_no_listeners_open_private_ports_false(self):
+    def test_unsecure_listener_no_listeners_open_private_ports_false(self):
         conf = yaml.safe_load(
             ServerConfig().generate_config_section(
                 "che.org", "/data_dir_path", False, None
@@ -129,7 +129,6 @@ class ServerConfigTestCase(unittest.TestCase):
         )
 
         self.assertEqual(conf["listeners"], expected_listeners)
-
 
 
 class FederationBackoffTestCase(unittest.TestCase):

@@ -21,7 +21,6 @@ from twisted.internet import defer
 from synapse.api.errors import HttpResponseException
 from synapse.federation.persistence import TransactionActions
 from synapse.federation.units import Transaction
-from synapse.metrics import LaterGauge
 from synapse.logging.opentracing import (
     extract_text_map,
     set_tag,
@@ -29,10 +28,10 @@ from synapse.logging.opentracing import (
     tags,
     whitelisted_homeserver,
 )
+from synapse.metrics import LaterGauge
 from synapse.util.metrics import measure_func
 
 logger = logging.getLogger(__name__)
-
 
 
 class TransactionManager(object):
