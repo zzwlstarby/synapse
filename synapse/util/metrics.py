@@ -85,7 +85,7 @@ class Measure(object):
         "debug",
     ]
 
-    def __init__(self, clock, name, debug=False):
+    def __init__(self, clock, name, debug=True):
         self.clock = clock
         self.name = name
         self._logging_context = None
