@@ -82,15 +82,13 @@ class Measure(object):
         "name",
         "_logging_context",
         "start",
-        "debug",
     ]
 
-    def __init__(self, clock, name, debug=True):
+    def __init__(self, clock, name):
         self.clock = clock
         self.name = name
         self._logging_context = None
         self.start = None
-        self.debug = debug
 
     def __enter__(self):
         if self._logging_context:
@@ -99,7 +97,7 @@ class Measure(object):
         self.start = self.clock.time()
         parent_context = LoggingContext.current_context()
         self._logging_context = LoggingContext(
-            "Measure[%s]" % (self.name,), parent_context, debug=True
+            "Measure[%s]" % (self.name,), parent_context
         )
         self._logging_context.__enter__()
         in_flight.register((self.name,), self._update_in_flight)
@@ -113,14 +111,6 @@ class Measure(object):
 
         in_flight.unregister((self.name,), self._update_in_flight)
         self._logging_context.__exit__(exc_type, exc_val, exc_tb)
-
-        if self.debug:
-            logger.info(
-                "Exiting measure block %s: duration %i, usage %s",
-                self.name,
-                duration,
-                usage,
-            )
 
         try:
             block_counter.labels(self.name).inc()
