@@ -84,14 +84,16 @@ class Measure(object):
         "start",
         "created_context",
         "start_usage",
+        "debug",
     ]
 
-    def __init__(self, clock, name):
+    def __init__(self, clock, name, debug=True):
         self.clock = clock
         self.name = name
         self.start_context = None
         self.start = None
         self.created_context = False
+        self.debug = debug
 
     def __enter__(self):
         self.start = self.clock.time()
@@ -107,6 +109,7 @@ class Measure(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if isinstance(exc_type, Exception) or not self.start_context:
+            logger.info("Exiting measure %s with exception", self.name)
             return
 
         in_flight.unregister((self.name,), self._update_in_flight)
@@ -133,6 +136,8 @@ class Measure(object):
 
         current = context.get_resource_usage()
         usage = current - self.start_usage
+        if self.debug:
+            logger.info("Exiting measure block %s: usage %s", self.name, usage)
         try:
             block_ru_utime.labels(self.name).inc(usage.ru_utime)
             block_ru_stime.labels(self.name).inc(usage.ru_stime)
