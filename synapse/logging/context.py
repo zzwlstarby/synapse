@@ -377,7 +377,7 @@ class LoggingContext(object):
 
         self.usage_start = None
 
-    def get_resource_usage(self):
+    def get_resource_usage(self, debug=False):
         """Get resources used by this logcontext so far.
 
         Returns:
@@ -387,11 +387,21 @@ class LoggingContext(object):
         # we always return a copy, for consistency
         res = self._resource_usage.copy()
 
+        if debug:
+            logger.info("LogContext %s: usage so far: %s", self.name, res)
+
         # If we are on the correct thread and we're currently running then we
         # can include resource usage so far.
         is_main_thread = get_thread_id() == self.main_thread
         if self.alive and self.usage_start and is_main_thread:
             utime_delta, stime_delta = self._get_cputime()
+            if debug:
+                logger.info(
+                    "LogContext %s: additional user/sys CPU usage since activation: %f, %f",
+                    self.name,
+                    utime_delta,
+                    stime_delta,
+                )
             res.ru_utime += utime_delta
             res.ru_stime += stime_delta
 
