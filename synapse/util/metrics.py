@@ -106,11 +106,12 @@ class Measure(object):
         if not self._logging_context:
             raise RuntimeError("Measure() block exited without being entered")
 
+        duration = self.clock.time() - self.start
+        usage = self._logging_context.get_resource_usage()
+
         in_flight.unregister((self.name,), self._update_in_flight)
         self._logging_context.__exit__(exc_type, exc_val, exc_tb)
 
-        duration = self.clock.time() - self.start
-        usage = self._logging_context.get_resource_usage()
         if self.debug:
             logger.info(
                 "Exiting measure block %s: duration %i, usage %s",
@@ -128,7 +129,7 @@ class Measure(object):
             block_db_txn_duration.labels(self.name).inc(usage.db_txn_duration_sec)
             block_db_sched_duration.labels(self.name).inc(usage.db_sched_duration_sec)
         except ValueError:
-            logger.warning("Failed to save metrics! Usage:", usage)
+            logger.warning("Failed to save metrics! Usage: %s", usage)
 
     def _update_in_flight(self, metrics):
         """Gets called when processing in flight metrics
