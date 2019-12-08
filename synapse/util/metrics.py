@@ -98,7 +98,9 @@ class Measure(object):
 
         self.start = self.clock.time()
         parent_context = LoggingContext.current_context()
-        self._logging_context = LoggingContext("Measure", parent_context)
+        self._logging_context = LoggingContext(
+            "Measure[%s]" % (self.name,), parent_context
+        )
         self._logging_context.__enter__()
         in_flight.register((self.name,), self._update_in_flight)
 
