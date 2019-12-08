@@ -193,6 +193,7 @@ class LoggingContext(object):
         "request",
         "tag",
         "scope",
+        "debug",
     ]
 
     thread_local = threading.local()
@@ -234,7 +235,7 @@ class LoggingContext(object):
 
     sentinel = Sentinel()
 
-    def __init__(self, name=None, parent_context=None, request=None):
+    def __init__(self, name=None, parent_context=None, request=None, debug=False):
         self.previous_context = LoggingContext.current_context()
         self.name = name
 
@@ -259,6 +260,8 @@ class LoggingContext(object):
         if request is not None:
             # the request param overrides the request from the parent context
             self.request = request
+
+        self.debug = debug
 
     def __str__(self):
         if self.request:
@@ -356,6 +359,13 @@ class LoggingContext(object):
         # far
         if not self.usage_start:
             self.usage_start = get_thread_resource_usage()
+        if self.debug:
+            logger.info(
+                "Starting logcontext %s, usage=%f/%f",
+                self.name,
+                self.usage_start.ru_utime,
+                self.usage_start.ru_stime,
+            )
 
     def stop(self):
         if get_thread_id() != self.main_thread:
@@ -377,7 +387,7 @@ class LoggingContext(object):
 
         self.usage_start = None
 
-    def get_resource_usage(self, debug=False):
+    def get_resource_usage(self):
         """Get resources used by this logcontext so far.
 
         Returns:
@@ -387,27 +397,27 @@ class LoggingContext(object):
         # we always return a copy, for consistency
         res = self._resource_usage.copy()
 
-        if debug:
+        if self.debug:
             logger.info("LogContext %s: usage so far: %s", self.name, res)
 
         # If we are on the correct thread and we're currently running then we
         # can include resource usage so far.
         is_main_thread = get_thread_id() == self.main_thread
         if self.alive and self.usage_start and is_main_thread:
-            utime_delta, stime_delta = self._get_cputime(debug=debug)
+            utime_delta, stime_delta = self._get_cputime()
             res.ru_utime += utime_delta
             res.ru_stime += stime_delta
 
         return res
 
-    def _get_cputime(self, debug=False):
+    def _get_cputime(self):
         """Get the cpu usage time so far
 
         Returns: Tuple[float, float]: seconds in user mode, seconds in system mode
         """
         current = get_thread_resource_usage()
 
-        if debug:
+        if self.debug:
             logger.info(
                 "LogContext %s: start cputime %f/%f, now %f/%f",
                 self.name,

@@ -99,7 +99,7 @@ class Measure(object):
         self.start = self.clock.time()
         parent_context = LoggingContext.current_context()
         self._logging_context = LoggingContext(
-            "Measure[%s]" % (self.name,), parent_context
+            "Measure[%s]" % (self.name,), parent_context, debug=True
         )
         self._logging_context.__enter__()
         in_flight.register((self.name,), self._update_in_flight)
@@ -109,7 +109,7 @@ class Measure(object):
             raise RuntimeError("Measure() block exited without being entered")
 
         duration = self.clock.time() - self.start
-        usage = self._logging_context.get_resource_usage(debug=True)
+        usage = self._logging_context.get_resource_usage()
 
         in_flight.unregister((self.name,), self._update_in_flight)
         self._logging_context.__exit__(exc_type, exc_val, exc_tb)
