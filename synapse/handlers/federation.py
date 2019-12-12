@@ -385,6 +385,7 @@ class FederationHandler(BaseHandler):
 
                     room_version = await self.store.get_room_version(room_id)
                     state_map = await resolve_events_with_store(
+                        room_id,
                         room_version,
                         state_maps,
                         event_map,
