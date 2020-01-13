@@ -132,7 +132,9 @@ class SamlHandler:
             logger.warning("SAML2 response was not signed")
             raise SynapseError(400, "SAML2 response was not signed")
 
-        logger.info("SAML2 response: %s", saml2_auth.origxml)
+        logger.debug("SAML2 response: %s", saml2_auth.origxml)
+        for assertion in saml2_auth.assertions:
+            logger.info("SAML2 assertion: %s", assertion)
         logger.info("SAML2 mapped attributes: %s", saml2_auth.ava)
 
         self._outstanding_requests_dict.pop(saml2_auth.in_response_to, None)
