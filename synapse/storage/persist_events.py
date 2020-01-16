@@ -433,15 +433,18 @@ class EventsPersistenceStorage(object):
         latest_event_ids = set(latest_event_ids)
 
         # start with the existing forward extremities
-        result = set(latest_event_ids)
+        candidates = set(latest_event_ids)
 
         # add all the new events to the list
-        result.update(event.event_id for event in new_events)
+        candidates.update(event.event_id for event in new_events)
+
+        result = set(candidates)
 
         # Now remove all events which are prev_events of any of the new events
-        result.difference_update(
+        prevs_of_new_events = [
             e_id for event in new_events for e_id in event.prev_event_ids()
-        )
+        ]
+        result.difference_update(prevs_of_new_events)
 
         # Remove any events which are prev_events of any existing events.
         existing_prevs = yield self.main_store._get_events_which_are_prevs(result)
@@ -450,10 +453,41 @@ class EventsPersistenceStorage(object):
         # Finally handle the case where the new events have soft-failed prev
         # events. If they do we need to remove them and their prev events,
         # otherwise we end up with dangling extremities.
-        existing_prevs = yield self.main_store._get_prevs_before_rejected(
-            e_id for event in new_events for e_id in event.prev_event_ids()
+        prevs_before_rejected = yield self.main_store._get_prevs_before_rejected(
+            prevs_of_new_events
         )
-        result.difference_update(existing_prevs)
+        result.difference_update(prevs_before_rejected)
+
+        if not result:
+            logger.error(
+                "No forward extremities left when persisting events in room %s:",
+                room_id,
+            )
+            logger.info(
+                "New events: %s", [event.event_id for event, ctx in event_contexts]
+            )
+            logger.info(
+                "... of which not rejected/soft-failed/outlier: %s",
+                [event.event_id for event in new_events],
+            )
+            logger.info("Initial forward extremities: %s", latest_event_ids)
+
+            logger.info("Candidate extremities: %s", candidates)
+            results2 = set(candidates)
+            logger.info(
+                "- those which are prev events of new valid events: %s",
+                results2.intersection(prevs_of_new_events),
+            )
+            results2.difference_update(prevs_of_new_events)
+            logger.info(
+                "- those which are prev events of existing events: %s",
+                results2.intersection(existing_prevs),
+            )
+            results2.difference_update(existing_prevs)
+            logger.info(
+                "- the ancestors of rejected prev_events of new events: %s",
+                results2.intersection(prevs_before_rejected),
+            )
 
         # We only update metrics for events that change forward extremities
         # (e.g. we ignore backfill/outliers/etc)
