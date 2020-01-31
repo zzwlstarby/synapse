@@ -79,7 +79,7 @@ class PerDestinationQueue(object):
         # Pending EDUs by their "key". Keyed EDUs are EDUs that get clobbered
         # based on their key (e.g. typing events by room_id)
         # Map of (edu_type, key) -> Edu
-        self._pending_edus_keyed = {}  # type: dict[tuple[str, str], Edu]
+        self._pending_edus_keyed = {}  # type: StateMap[Edu]
 
         # Map of user_id -> UserPresenceState of pending presence to be sent to this
         # destination

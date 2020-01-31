@@ -23,6 +23,7 @@ import re
 import shutil
 import sys
 import traceback
+from typing import Dict, Optional
 
 import six
 from six import string_types
@@ -122,7 +123,7 @@ class PreviewUrlResource(DirectServeResource):
                 pattern = entry[attrib]
                 value = getattr(url_tuple, attrib)
                 logger.debug(
-                    "Matching attrib '%s' with value '%s' against" " pattern '%s'",
+                    "Matching attrib '%s' with value '%s' against pattern '%s'",
                     attrib,
                     value,
                     pattern,
@@ -237,8 +238,8 @@ class PreviewUrlResource(DirectServeResource):
             # If we don't find a match, we'll look at the HTTP Content-Type, and
             # if that doesn't exist, we'll fall back to UTF-8.
             if not encoding:
-                match = _content_type_match.match(media_info["media_type"])
-                encoding = match.group(1) if match else "utf-8"
+                content_match = _content_type_match.match(media_info["media_type"])
+                encoding = content_match.group(1) if content_match else "utf-8"
 
             og = decode_and_calc_og(body, media_info["uri"], encoding)
 
@@ -402,7 +403,7 @@ class PreviewUrlResource(DirectServeResource):
 
         logger.info("Running url preview cache expiry")
 
-        if not (yield self.store.has_completed_background_updates()):
+        if not (yield self.store.db.updates.has_completed_background_updates()):
             logger.info("Still running DB updates; skipping expiry")
             return
 
@@ -518,7 +519,7 @@ def _calc_og(tree, media_uri):
     # "og:video:height" : "720",
     # "og:video:secure_url": "https://www.youtube.com/v/LXDBoHyjmtw?version=3",
 
-    og = {}
+    og = {}  # type: Dict[str, Optional[str]]
     for tag in tree.xpath("//*/meta[starts-with(@property, 'og:')]"):
         if "content" in tag.attrib:
             # if we've got more than 50 tags, someone is taking the piss

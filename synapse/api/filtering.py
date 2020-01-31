@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 # Copyright 2015, 2016 OpenMarket Ltd
+# Copyright 2017 Vector Creations Ltd
+# Copyright 2018-2019 New Vector Ltd
+# Copyright 2019 The Matrix.org Foundation C.I.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +15,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List
+
 from six import text_type
 
 import jsonschema
@@ -290,7 +295,7 @@ class Filter(object):
             room_id = None
             ev_type = "m.presence"
             contains_url = False
-            labels = []
+            labels = []  # type: List[str]
         else:
             sender = event.get("sender", None)
             if not sender:
