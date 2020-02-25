@@ -432,6 +432,8 @@ class MatrixFederationHttpClient(object):
                         _sec_timeout,
                     )
 
+                    outgoing_requests_counter.labels(method_bytes).inc()
+
                     try:
                         with Measure(self.clock, "outbound_request"):
                             # we don't want all the fancy cookie and redirect handling
@@ -521,6 +523,8 @@ class MatrixFederationHttpClient(object):
                         response.code,
                         response.phrase.decode("ascii", errors="replace"),
                     )
+
+                    incoming_responses_counter.labels(method_bytes, response.code).inc()
 
                     set_tag(tags.HTTP_STATUS_CODE, response.code)
 
