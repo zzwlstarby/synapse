@@ -291,6 +291,11 @@ class HomeServer(object):
     def get_admin_redaction_ratelimiter(self):
         return self.admin_redaction_ratelimiter
 
+    def get_client_tls_options(self):
+        return context_factory.ClientTLSOptionsFactory(
+            self.config
+        )
+
     def build_federation_client(self):
         return FederationClient(self)
 
