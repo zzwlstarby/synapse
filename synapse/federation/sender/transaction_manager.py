@@ -17,6 +17,8 @@ from typing import List
 
 from canonicaljson import json
 
+from twisted.internet import defer
+
 import synapse.server
 from synapse.api.errors import HttpResponseException
 from synapse.events import EventBase
