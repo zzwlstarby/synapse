@@ -41,7 +41,6 @@ from synapse.api.errors import (
     FederationDeniedError,
     FederationError,
     RequestSendFailed,
-    StoreError,
     SynapseError,
 )
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS, RoomVersion, RoomVersions
@@ -659,11 +658,11 @@ class FederationHandler(BaseHandler):
         # this can happen if a remote server claims that the state or
         # auth_events at an event in room A are actually events in room B
 
-        bad_events = list(
+        bad_events = [
             (event_id, event.room_id)
             for event_id, event in fetched_events.items()
             if event.room_id != room_id
-        )
+        ]
 
         for bad_event_id, bad_room_id in bad_events:
             # This is a bogus situation, but since we may only discover it a long time
@@ -706,28 +705,6 @@ class FederationHandler(BaseHandler):
             context = await self._handle_new_event(origin, event, state=state)
         except AuthError as e:
             raise FederationError("ERROR", e.code, e.msg, affected=event.event_id)
-
-        room = await self.store.get_room(room_id)
-
-        if not room:
-            try:
-                prev_state_ids = await context.get_prev_state_ids()
-                create_event = await self.store.get_event(
-                    prev_state_ids[(EventTypes.Create, "")]
-                )
-
-                room_version_id = create_event.content.get(
-                    "room_version", RoomVersions.V1.identifier
-                )
-
-                await self.store.store_room(
-                    room_id=room_id,
-                    room_creator_user_id="",
-                    is_public=False,
-                    room_version=KNOWN_ROOM_VERSIONS[room_version_id],
-                )
-            except StoreError:
-                logger.exception("Failed to store room.")
 
         if event.type == EventTypes.Member:
             if event.membership == Membership.JOIN:
@@ -856,7 +833,7 @@ class FederationHandler(BaseHandler):
 
         # Don't bother processing events we already have.
         seen_events = await self.store.have_events_in_timeline(
-            set(e.event_id for e in events)
+            {e.event_id for e in events}
         )
 
         events = [e for e in events if e.event_id not in seen_events]
@@ -866,7 +843,7 @@ class FederationHandler(BaseHandler):
 
         event_map = {e.event_id: e for e in events}
 
-        event_ids = set(e.event_id for e in events)
+        event_ids = {e.event_id for e in events}
 
         # build a list of events whose prev_events weren't in the batch.
         # (XXX: this will include events whose prev_events we already have; that doesn't
@@ -892,13 +869,13 @@ class FederationHandler(BaseHandler):
             state_events.update({s.event_id: s for s in state})
             events_to_state[e_id] = state
 
-        required_auth = set(
+        required_auth = {
             a_id
             for event in events
             + list(state_events.values())
             + list(auth_events.values())
             for a_id in event.auth_event_ids()
-        )
+        }
         auth_events.update(
             {e_id: event_map[e_id] for e_id in required_auth if e_id in event_map}
         )
@@ -1247,7 +1224,7 @@ class FederationHandler(BaseHandler):
     async def on_event_auth(self, event_id: str) -> List[EventBase]:
         event = await self.store.get_event(event_id)
         auth = await self.store.get_auth_chain(
-            [auth_id for auth_id in event.auth_event_ids()], include_given=True
+            list(event.auth_event_ids()), include_given=True
         )
         return list(auth)
 
@@ -1323,16 +1300,18 @@ class FederationHandler(BaseHandler):
 
             logger.debug("do_invite_join event: %s", event)
 
-            try:
-                await self.store.store_room(
-                    room_id=room_id,
-                    room_creator_user_id="",
-                    is_public=False,
-                    room_version=room_version_obj,
-                )
-            except Exception:
-                # FIXME
-                pass
+            # if this is the first time we've joined this room, it's time to add
+            # a row to `rooms` with the correct room version. If there's already a
+            # row there, we should override it, since it may have been populated
+            # based on an invite request which lied about the room version.
+            #
+            # federation_client.send_join has already checked that the room
+            # version in the received create event is the same as room_version_obj,
+            # so we can rely on it now.
+            #
+            await self.store.upsert_room_on_join(
+                room_id=room_id, room_version=room_version_obj,
+            )
 
             await self._persist_auth_tree(
                 origin, auth_chain, state, event, room_version_obj
@@ -2152,7 +2131,7 @@ class FederationHandler(BaseHandler):
 
         # Now get the current auth_chain for the event.
         local_auth_chain = await self.store.get_auth_chain(
-            [auth_id for auth_id in event.auth_event_ids()], include_given=True
+            list(event.auth_event_ids()), include_given=True
         )
 
         # TODO: Check if we would now reject event_id. If so we need to tell
@@ -2654,7 +2633,7 @@ class FederationHandler(BaseHandler):
             member_handler = self.hs.get_room_member_handler()
             yield member_handler.send_membership_event(None, event, context)
         else:
-            destinations = set(x.split(":", 1)[-1] for x in (sender_user_id, room_id))
+            destinations = {x.split(":", 1)[-1] for x in (sender_user_id, room_id)}
             yield self.federation_client.forward_third_party_invite(
                 destinations, room_id, event_dict
             )
