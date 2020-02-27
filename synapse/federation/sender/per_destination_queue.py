@@ -212,9 +212,9 @@ class PerDestinationQueue(object):
                 ) = await self._get_to_device_message_edus(limit)
 
                 # Lock before we start doing work
-                acquired_lock = yield make_deferred_yieldable(
-                    self._transaction_manager.limiter.acquire()
-                )
+                #acquired_lock = yield make_deferred_yieldable(
+                #    self._transaction_manager.limiter.acquire()
+                #)
 
                 pending_edus = device_update_edus + to_device_edus
 
